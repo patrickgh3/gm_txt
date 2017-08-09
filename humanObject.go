@@ -6,6 +6,7 @@ import (
     "bufio"
     "errors"
     "strings"
+    "strconv"
 )
 
 type EventCode struct {
@@ -15,6 +16,7 @@ type EventCode struct {
 
 var eventCodeToName = make(map[EventCode]string)
 var eventNameToCode = make(map[string]EventCode)
+var wildcardCodes = make(map[int]bool)
 
 func addEventCodeTranslation(Name string, Type int, Number int) {
     eventCodeToName[EventCode{Type:Type,Number:Number}] = Name
@@ -23,14 +25,39 @@ func addEventCodeTranslation(Name string, Type int, Number int) {
 
 func InitTranslations () {
     addEventCodeTranslation("Create", 0, 0)
+    addEventCodeTranslation("Destroy", 1, 0)
+    addEventCodeTranslation("Alarm", 2, 0)
+    wildcardCodes[2] = true
     addEventCodeTranslation("Step", 3, 0)
+    addEventCodeTranslation("Begin Step", 3, 1)
+    addEventCodeTranslation("End Step", 3, 2)
     addEventCodeTranslation("Collision", 4, 0)
+
+    addEventCodeTranslation("Outside Room", 7, 0)
+    addEventCodeTranslation("Intersect Boundary", 7, 1)
+    addEventCodeTranslation("Game Start", 7, 2)
+    addEventCodeTranslation("Image Loaded", 7, 60)
+    addEventCodeTranslation("HTTP", 7, 62)
+    addEventCodeTranslation("Dialog", 7, 63)
+
+    addEventCodeTranslation("Draw", 8, 0)
+    addEventCodeTranslation("Draw GUI", 8, 64)
+    addEventCodeTranslation("Resize", 8, 65)
+    addEventCodeTranslation("Draw Begin", 8, 72)
+    addEventCodeTranslation("Draw End", 8, 73)
+    addEventCodeTranslation("Draw GUI Begin", 8, 74)
+    addEventCodeTranslation("Draw GUI End", 8, 75)
+    addEventCodeTranslation("Pre Draw", 8, 76)
+    addEventCodeTranslation("Post Draw", 8, 77)
 }
 
 func WriteHumanObject (obj GMObject, w io.Writer) error {
     for _, event := range obj.Events.Events {
-        name, ok := eventCodeToName[
-                EventCode{Type:event.Type,Number:event.Number}]
+        ec := EventCode{Type:event.Type,Number:event.Number}
+        if _, ok := wildcardCodes[ec.Type]; ok {
+            ec.Number = 0
+        }
+        name, ok := eventCodeToName[ec]
         if !ok {
             return errors.New(fmt.Sprintf("Unrecognized event code: (%v,%v)",
                     event.Type, event.Number))
@@ -38,6 +65,8 @@ func WriteHumanObject (obj GMObject, w io.Writer) error {
 
         if name == "Collision" {
             fmt.Fprintf(w, "---%v %v\n", name, event.ObjectName)
+        } else if name == "Alarm" {
+            fmt.Fprintf(w, "---%v %v\n", name, event.Number)
         } else {
             fmt.Fprintf(w, "---%v\n", name)
         }
@@ -77,13 +106,27 @@ func ReadHumanObject (r io.Reader, obj *GMObject) error {
                         lineNum))
             }
             tokens := strings.Split(eventTitle, " ")
-            eventName := tokens[0]
+
+            // Try entire title as name
+
+            eventName := eventTitle
             code, ok := eventNameToCode[eventName]
             if !ok {
-                return errors.New(fmt.Sprintf(
-                        "Unrecognized event name %v on line %v",
-                        eventName, lineNum))
+
+                // Try first token as name
+
+                eventName = tokens[0]
+                code, ok = eventNameToCode[eventName]
+
+                if !ok {
+                    return errors.New(fmt.Sprintf(
+                            "Unrecognized event title %v on line %v",
+                            eventName, lineNum))
+                }
             }
+
+
+            // Create the event
 
             curEvent = blankEvent()
             obj.Events.Events = append(obj.Events.Events, curEvent)
@@ -98,11 +141,17 @@ func ReadHumanObject (r io.Reader, obj *GMObject) error {
                 } else {
                     curEvent.ObjectName = tokens[1]
                 }
-            } else {
-                if len(tokens) > 1 {
+            } else if eventName == "Alarm" {
+                if len(tokens) < 2 {
                     return errors.New(fmt.Sprintf(
-                            "%v event takes no arguments on line %v",
-                            eventName, lineNum))
+                            "Alarm event needs number on line %v",
+                            lineNum))
+                } else if i, err := strconv.Atoi(tokens[1]); err != nil || i<0 || i>11 {
+                    return errors.New(fmt.Sprintf(
+                            "Alarm event has invalid number on line %v",
+                            lineNum))
+                } else {
+                    curEvent.Number = i
                 }
             }
 

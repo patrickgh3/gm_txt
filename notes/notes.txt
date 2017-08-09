@@ -1,5 +1,12 @@
 
 
+Condense multiple GM actions into one
+
+
+
+
+
+
 GameMaker side
 
 Creating objects

@@ -24,11 +24,11 @@ func main () {
     // Test translation
 
     /*err = GMObjectFileToHumanObjectFile(
-            "example.gmx/objects/objPlayer.object.gmx",
-            humanDir+"/objPlayer")*/
+            "example.gmx/objects/objComplex.object.gmx",
+            humanDir+"/objComplex")*/
     err = HumanObjectFileToGMObjectFile(
-            humanDir+"/objPlayer",
-            "example.gmx/objects/objPlayer.object.gmx")
+            humanDir+"/objComplex",
+            "example.gmx/objects/objComplex.object.gmx")
     if err != nil {
         fmt.Printf("Error translating test file: %v\n", err)
     }

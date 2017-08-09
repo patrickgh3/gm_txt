@@ -40,7 +40,7 @@ type Events struct {
 
 type Event struct {
     Type int`xml:"eventtype,attr"`
-    Number int`xml:"enumb,attr,omitempty"`
+    Number int`xml:"enumb,attr"`
     ObjectName string`xml:"ename,attr,omitempty"`
     Actions []Action`xml:"action"`
 }
