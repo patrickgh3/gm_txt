@@ -1,0 +1,36 @@
+
+
+GameMaker side
+
+Creating objects
+Modifying objects
+
+ ^  |
+ |  |
+ |  v
+
+Modifying objects    - main one
+
+Txt side
+
+
+
+
+
+
+
+startup:
+    translate ALL GM to txt
+every 2 seconds:
+    for each txt file:
+        if txt file modified:
+            translate txt -> GM
+    for each gm object file:
+        if obj file modified:
+            translate GM -> txt
+        if obj file created:
+            translate GM - > txt (new file)
+end:
+    remove txt folder
+
+
