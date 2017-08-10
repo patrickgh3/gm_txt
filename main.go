@@ -10,6 +10,8 @@ import (
     "strings"
     "github.com/fsnotify/fsnotify"
     "time"
+    "os/signal"
+    "syscall"
 )
 
 const humanDir string = "NiceObjects"
@@ -19,7 +21,14 @@ var gmObjectsDir = filepath.Join(projectDir, "objects")
 func main () {
     InitTranslations()
 
+    // Start listening for SIGINT (Ctrl-C)
+
+    sigchan := make(chan os.Signal, 2)
+    signal.Notify(sigchan, os.Interrupt, syscall.SIGTERM)
+
     // Create human folder
+
+    fmt.Println("Initializing NiceObjects directory...")
 
     err := os.MkdirAll(humanDir, os.ModePerm)
     if err != nil {
@@ -31,7 +40,7 @@ func main () {
 
     err = filepath.Walk(gmObjectsDir, initialTranslateWalkFunc)
     if err != nil {
-        fmt.Printf("Error during initial translation all GM objects "+
+        fmt.Printf("Error during initial translation of all GM objects "+
                 "to human objects: %v\n", err)
         return
     }
@@ -41,11 +50,11 @@ func main () {
     watcher, err := fsnotify.NewWatcher()
     if err != nil {
         fmt.Printf("Error creating fsnotify watcher: %v\n", err)
+        return
     }
     defer watcher.Close()
 
-    done := make(chan bool)
-
+    // Watcher must be in separate goroutine
     go func () {
         for {
             select {
@@ -57,7 +66,7 @@ func main () {
                     }
                 }
             case err := <-watcher.Errors:
-                fmt.Printf("Watcher error: %v\n", err)
+                fmt.Printf("Fsnotify Watcher error: %v\n", err)
             }
         }
     }()
@@ -66,7 +75,17 @@ func main () {
         fmt.Printf("Error assigning human dir to fsnotify watcher: %v\n", err)
     }
 
-    <-done
+    fmt.Println("Listening")
+
+    <-sigchan
+
+    fmt.Println("Signal received, removing NiceObjects directory...")
+    err = os.RemoveAll(humanDir)
+    if err != nil {
+        fmt.Printf("Error removing NiceObjects directory: %v\n", err)
+        return
+    }
+    fmt.Println("Success")
 }
 
 func handleHumanObjectModified (humanObjPath string) {
