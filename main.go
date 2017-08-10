@@ -14,9 +14,13 @@ import (
     "syscall"
 )
 
-const humanDir string = "NiceObjects"
+const humanDir   string = "NiceObjects"
 const projectDir string = "example.gmx"
 var gmObjectsDir = filepath.Join(projectDir, "objects")
+
+const reverbSpacing time.Duration = 1 * time.Second
+var gmChanged       time.Time
+var humanChanged    time.Time
 
 func main () {
     InitTranslations()
@@ -54,17 +58,12 @@ func main () {
     }
     defer watcher.Close()
 
-    // Watcher must be in separate goroutine
+    // Watcher must be in a separate goroutine
     go func () {
         for {
             select {
             case event := <-watcher.Events:
-                ext := filepath.Ext(event.Name)
-                if ext == ".ogml" {
-                    if event.Op == fsnotify.Write {
-                        handleHumanObjectModified(event.Name)
-                    }
-                }
+                processWatcherEvent(event)
             case err := <-watcher.Errors:
                 fmt.Printf("Fsnotify Watcher error: %v\n", err)
             }
@@ -74,10 +73,18 @@ func main () {
     if err := watcher.Add(humanDir); err != nil {
         fmt.Printf("Error assigning human dir to fsnotify watcher: %v\n", err)
     }
+    if err := watcher.Add(gmObjectsDir); err != nil {
+        fmt.Printf("Error assigning GM objects dir to fsnotify watcher: %v\n",
+                err)
+    }
+
+    // Surrender this goroutine to the watcher, and wait for control signal
 
     fmt.Println("Listening")
 
     <-sigchan
+
+    // Remove created directory
 
     fmt.Println("Signal received, removing NiceObjects directory...")
     err = os.RemoveAll(humanDir)
@@ -88,7 +95,30 @@ func main () {
     fmt.Println("Success")
 }
 
-func handleHumanObjectModified (humanObjPath string) {
+func processWatcherEvent (event fsnotify.Event) {
+    ext := filepath.Ext(event.Name)
+    isHumanObj := strings.HasPrefix(event.Name, humanDir) &&
+            ext == ".ogml"
+    isGMObj := strings.HasPrefix(event.Name, gmObjectsDir) &&
+            ext == ".gmx" // close enough to ".object.gmx"
+    if isHumanObj {
+        if event.Op == fsnotify.Write {
+            if time.Since(gmChanged) > reverbSpacing {
+                translateHumanObject(event.Name)
+                humanChanged = time.Now()
+            }
+        }
+    } else if isGMObj {
+        if event.Op == fsnotify.Write {
+            if time.Since(humanChanged) > reverbSpacing {
+                translateGMObject(event.Name)
+                gmChanged = time.Now()
+            }
+        }
+    }
+}
+
+func translateHumanObject (humanObjPath string) {
     objName := strings.Split(filepath.Base(humanObjPath), ".")[0]
     gmObjPath := filepath.Join(gmObjectsDir, objName + ".object.gmx")
 
@@ -97,6 +127,19 @@ func handleHumanObjectModified (humanObjPath string) {
         fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
     } else {
         fmt.Printf("[%v] Translated %v\n",
+                time.Now().Format("15:04:05"), objName)
+    }
+}
+
+func translateGMObject (gmObjPath string) {
+    objName := strings.Split(filepath.Base(gmObjPath), ".")[0]
+    humanObjPath := filepath.Join(humanDir, objName + ".ogml")
+
+    err := GMObjectFileToHumanObjectFile(gmObjPath, humanObjPath)
+    if err != nil {
+        fmt.Printf("[%v] (From GM) %v\n", time.Now().Format("15:04:05"), err)
+    } else {
+        fmt.Printf("[%v] (From GM) Translated %v\n",
                 time.Now().Format("15:04:05"), objName)
     }
 }
