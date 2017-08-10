@@ -6,9 +6,15 @@ import (
     "bufio"
     "encoding/xml"
     "errors"
+    "path/filepath"
+    "strings"
+    "github.com/fsnotify/fsnotify"
+    "time"
 )
 
 const humanDir string = "NiceObjects"
+const projectDir string = "example.gmx"
+var gmObjectsDir = filepath.Join(projectDir, "objects")
 
 func main () {
     InitTranslations()
@@ -21,17 +27,73 @@ func main () {
         return
     }
 
-    // Test translation
+    // Translate all objects into human folder
 
-    /*err = GMObjectFileToHumanObjectFile(
-            "example.gmx/objects/objComplex.object.gmx",
-            humanDir+"/objComplex")*/
-    err = HumanObjectFileToGMObjectFile(
-            humanDir+"/objComplex",
-            "example.gmx/objects/objComplex.object.gmx")
+    err = filepath.Walk(gmObjectsDir, initialTranslateWalkFunc)
     if err != nil {
-        fmt.Printf("Error translating test file: %v\n", err)
+        fmt.Printf("Error during initial translation all GM objects "+
+                "to human objects: %v\n", err)
+        return
     }
+
+    // Start monitoring files for changes
+
+    watcher, err := fsnotify.NewWatcher()
+    if err != nil {
+        fmt.Printf("Error creating fsnotify watcher: %v\n", err)
+    }
+    defer watcher.Close()
+
+    done := make(chan bool)
+
+    go func () {
+        for {
+            select {
+            case event := <-watcher.Events:
+                ext := filepath.Ext(event.Name)
+                if ext == ".ogml" {
+                    if event.Op == fsnotify.Write {
+                        handleHumanObjectModified(event.Name)
+                    }
+                }
+            case err := <-watcher.Errors:
+                fmt.Printf("Watcher error: %v\n", err)
+            }
+        }
+    }()
+
+    if err := watcher.Add(humanDir); err != nil {
+        fmt.Printf("Error assigning human dir to fsnotify watcher: %v\n", err)
+    }
+
+    <-done
+}
+
+func handleHumanObjectModified (humanObjPath string) {
+    objName := strings.Split(filepath.Base(humanObjPath), ".")[0]
+    gmObjPath := filepath.Join(gmObjectsDir, objName + ".object.gmx")
+
+    err := HumanObjectFileToGMObjectFile(humanObjPath, gmObjPath)
+    if err != nil {
+        fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
+    } else {
+        fmt.Printf("[%v] Translated %v\n",
+                time.Now().Format("15:04:05"), objName)
+    }
+}
+
+func initialTranslateWalkFunc (gmObjPath string,
+        info os.FileInfo, err error) error {
+    if info.IsDir() {
+        return nil
+    }
+    dotSep := strings.SplitN(filepath.Base(gmObjPath), ".", 2)
+    if !(len(dotSep) == 2 && dotSep[1] == "object.gmx") {
+        return nil
+    }
+    objName := dotSep[0] + ".ogml"
+    humanObjPath := filepath.Join(humanDir, objName)
+    return GMObjectFileToHumanObjectFile(gmObjPath, humanObjPath)
 }
 
 func GMObjectFileToHumanObjectFile (objFilename string,
