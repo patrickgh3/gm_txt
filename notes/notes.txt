@@ -1,12 +1,24 @@
 Features Todo
 
-Handle objects modified via GM
-Handle new objects created in GM
-Handle new objects created in human folder
-Check what happens if you rename an object in GM
+File picker on double click exe
+Scripts support
 Object properties (sprite, solid, ...) where blank = default
 Some kind of documentation for event names, object properties
 Condense multiple GM actions into one
+Possibly remove duplicate messages if others get them
+
+
+
+
+
+Sprite sprPlayer
+Invisible
+Solid
+Persistent
+Depth -5
+Parent objPlayerParent
+Mask sprPlayerMask
+
 
 
 

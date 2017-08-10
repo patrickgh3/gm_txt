@@ -75,6 +75,11 @@ func WriteHumanObject (obj GMObject, w io.Writer) error {
     return nil
 }
 
+func blankObject() *GMObject {
+    return &GMObject{SpriteName:gmUndefinedStr, Solid:0, Visible:-1, Depth:0,
+            Persistent:0, ParentName:gmUndefinedStr, MaskName:gmUndefinedStr}
+}
+
 func blankEvent() *Event {
     arg := Argument{Kind:1, String:""}
     args := Arguments{Arguments:[]Argument{arg}}

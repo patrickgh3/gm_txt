@@ -4,6 +4,8 @@ import (
     "encoding/xml"
 )
 
+const gmUndefinedStr string = "<undefined>"
+
 type GMObject struct {
     XMLName xml.Name`xml:"object"`
     SpriteName string`xml:"spriteName"`
