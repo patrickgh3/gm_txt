@@ -18,9 +18,14 @@ var projectDir   string
 var gmObjectsDir string
 var gmScriptsDir string
 
+// "Reverb" refers to translations causing file Write events back and forth
+// between the GM and human folders.
 const reverbSpacing time.Duration = 1 * time.Second
+const dedupSpacing  time.Duration = 100 * time.Millisecond
 var gmChanged       time.Time
 var humanChanged    time.Time
+var lastGMFileChanged    string
+var lastHumanFileChanged string
 
 const usage string = `Usage:
 NiceObjects.exe     (Opens flie picker)
@@ -184,27 +189,43 @@ func processWatcherEvent (event fsnotify.Event) {
                 ext == ".gml"
 
         if isHumanObj {
-            if time.Since(gmChanged) > reverbSpacing {
+            if humanFileTimingOk(event.Name) {
                 humanChanged = time.Now()
+                lastHumanFileChanged = event.Name
                 translateHumanObject(event.Name)
             }
         } else if isHumanScript {
-            if time.Since(gmChanged) > reverbSpacing {
+            if humanFileTimingOk(event.Name) {
                 humanChanged = time.Now()
+                lastHumanFileChanged = event.Name
                 copyHumanScript(event.Name)
             }
         } else if isGMObj {
-            if time.Since(humanChanged) > reverbSpacing {
+            if gmFileTimingOk(event.Name) {
                 gmChanged = time.Now()
+                lastGMFileChanged = event.Name
                 translateGMObject(event.Name)
             }
         } else if isGMScript {
-            if time.Since(humanChanged) > reverbSpacing {
+            if gmFileTimingOk(event.Name) {
                 gmChanged = time.Now()
+                lastGMFileChanged = event.Name
                 copyGMScript(event.Name)
             }
         }
     }
+}
+
+func humanFileTimingOk (humanFile string) bool {
+    return time.Since(gmChanged) > reverbSpacing &&
+            (lastHumanFileChanged != humanFile ||
+            time.Since(humanChanged) > dedupSpacing)
+}
+
+func gmFileTimingOk (gmFile string) bool {
+    return time.Since(humanChanged) > reverbSpacing &&
+            (lastGMFileChanged != gmFile ||
+            time.Since(gmChanged) > dedupSpacing)
 }
 
 func copyHumanScript (humanScriptPath string) {
