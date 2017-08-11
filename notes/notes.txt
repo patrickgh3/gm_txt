@@ -6,6 +6,7 @@ Condense multiple GM actions into one
 Possibly remove duplicate messages if others get them
 Physics properties
 Discard duplicate/triplicate events on a human object file
+Hande objects or scripts folder not created?
 
 
 

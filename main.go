@@ -13,9 +13,10 @@ import (
 )
 
 var humanDir, _ = filepath.Abs("./NiceObjects")
-var projectPath string
-var projectDir  string
+var projectPath  string
+var projectDir   string
 var gmObjectsDir string
+var gmScriptsDir string
 
 const reverbSpacing time.Duration = 1 * time.Second
 var gmChanged       time.Time
@@ -69,6 +70,7 @@ func main () {
     }
     projectDir, _ = filepath.Split(projectPath)
     gmObjectsDir = filepath.Join(projectDir, "objects")
+    gmScriptsDir = filepath.Join(projectDir, "scripts")
 
     // Start listening for SIGINT (Ctrl-C)
 
@@ -85,12 +87,26 @@ func main () {
         return
     }
 
-    // Translate all objects into human folder
+    // Translate all objects and copy all scripts into human folder
 
     err = filepath.Walk(gmObjectsDir, initialTranslateWalkFunc)
     if err != nil {
         fmt.Printf("Error during initial translation of all GM objects "+
                 "to human objects: %v\n", err)
+        return
+    }
+
+    err = filepath.Walk(gmScriptsDir,
+            func (path string, info os.FileInfo, err error) error {
+                if info.IsDir() || filepath.Ext(path) != ".gml" {
+                    return nil
+                }
+                fn := filepath.Base(path)
+                humanScriptPath := filepath.Join(humanDir, fn)
+                return cp(humanScriptPath, path)
+            })
+    if err != nil {
+        fmt.Printf("Error during initial copying of scripts: %v\n", err)
         return
     }
 
@@ -122,6 +138,10 @@ func main () {
         fmt.Printf("Error assigning GM objects dir to fsnotify watcher: %v\n",
                 err)
     }
+    if err := watcher.Add(gmScriptsDir); err != nil {
+        fmt.Printf("Error assigning GM scripts dir to fsnotify watcher: %v\n",
+                err)
+    }
 
     // Surrender this goroutine to the watcher, and wait for control signal
 
@@ -142,10 +162,13 @@ func main () {
 
 func processWatcherEvent (event fsnotify.Event) {
     ext := filepath.Ext(event.Name)
-    isHumanObj := strings.HasPrefix(event.Name, humanDir) &&
-            ext == ".ogml"
+    isHuman := strings.HasPrefix(event.Name, humanDir)
+    isHumanObj := isHuman && ext == ".ogml"
+    isHumanScript := isHuman && ext == ".gml"
     isGMObj := strings.HasPrefix(event.Name, gmObjectsDir) &&
             ext == ".gmx" // close enough to ".object.gmx"
+    isGMScript := strings.HasPrefix(event.Name, gmScriptsDir) &&
+            ext == ".gml"
 
     if isHumanObj {
         if event.Op == fsnotify.Write {
@@ -157,6 +180,16 @@ func processWatcherEvent (event fsnotify.Event) {
             humanChanged = time.Now()
             translateAndAddHumanObject(event.Name)
         }
+    } else if isHumanScript {
+        // TODO: Create
+        // also TODO: do we even need to listen to creates?
+        // can we just call translateAndAddHumanObject(event.Name) each write?
+        if event.Op == fsnotify.Write {
+            if time.Since(gmChanged) > reverbSpacing {
+                humanChanged = time.Now()
+                copyHumanScript(event.Name)
+            }
+        }
     } else if isGMObj {
         if event.Op == fsnotify.Write {
             if time.Since(humanChanged) > reverbSpacing {
@@ -164,6 +197,39 @@ func processWatcherEvent (event fsnotify.Event) {
                 translateGMObject(event.Name)
             }
         }
+    } else if isGMScript {
+        if event.Op == fsnotify.Write {
+            if time.Since(humanChanged) > reverbSpacing {
+                gmChanged = time.Now()
+                copyGMScript(event.Name)
+            }
+        }
+    }
+}
+
+func copyHumanScript (humanScriptPath string) {
+    fn := filepath.Base(humanScriptPath)
+    gmScriptPath := filepath.Join(gmScriptsDir, fn)
+    err := cp(gmScriptPath, humanScriptPath)
+    if err != nil {
+        fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
+    } else {
+        scriptName := strings.Split(fn, ".")[0]
+        fmt.Printf("[%v] Copied %v\n",
+                time.Now().Format("15:04:05"), scriptName)
+    }
+}
+
+func copyGMScript (gmScriptPath string) {
+    fn := filepath.Base(gmScriptPath)
+    humanScriptPath := filepath.Join(humanDir, fn)
+    err := cp(humanScriptPath, gmScriptPath)
+    if err != nil {
+        fmt.Printf("[%v] (From GM) %v\n", time.Now().Format("15:04:05"), err)
+    } else {
+        scriptName := strings.Split(fn, ".")[0]
+        fmt.Printf("[%v] (From GM) Copied %v\n",
+                time.Now().Format("15:04:05"), scriptName)
     }
 }
 
@@ -230,7 +296,6 @@ func translateGMObject (gmObjPath string) {
 
 func initialTranslateWalkFunc (gmObjPath string,
         info os.FileInfo, err error) error {
-    // TODO: don't go into subdirectories
     if info.IsDir() {
         return nil
     }
