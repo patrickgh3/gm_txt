@@ -3,10 +3,6 @@ package main
 import (
     "fmt"
     "os"
-    "bufio"
-    "io/ioutil"
-    "encoding/xml"
-    "errors"
     "path/filepath"
     "strings"
     "github.com/fsnotify/fsnotify"
@@ -28,6 +24,8 @@ var humanChanged    time.Time
 const usage string = `Usage:
 NiceObjects.exe     (Opens flie picker)
 NiceObjects.exe path/to/project.project.gmx`
+
+const touchProject = false
 
 func main () {
     InitTranslations()
@@ -148,38 +146,22 @@ func processWatcherEvent (event fsnotify.Event) {
             ext == ".ogml"
     isGMObj := strings.HasPrefix(event.Name, gmObjectsDir) &&
             ext == ".gmx" // close enough to ".object.gmx"
+
     if isHumanObj {
         if event.Op == fsnotify.Write {
             if time.Since(gmChanged) > reverbSpacing {
-                fmt.Println("Write")
-                translateHumanObject(event.Name)
                 humanChanged = time.Now()
+                translateHumanObject(event.Name)
             }
         } else if event.Op == fsnotify.Create {
-            fmt.Println("Create")
-            objName := strings.Split(filepath.Base(event.Name), ".")[0]
-            gmObjPath := filepath.Join(gmObjectsDir, objName + ".object.gmx")
-            err := HumanObjectFileToGMObjectFile(event.Name, gmObjPath, false)
-            if err != nil {
-                fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
-            } else {
-                fmt.Printf("[%v] Translated %v\n",
-                        time.Now().Format("15:04:05"), objName)
-                err = AddObjectToGMProject(objName)
-                if err != nil {
-                    fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
-                } else {
-                    fmt.Printf("[%v] Project file updated %v\n",
-                            time.Now().Format("15:04:05"), objName)
-                }
-            }
             humanChanged = time.Now()
+            translateAndAddHumanObject(event.Name)
         }
     } else if isGMObj {
         if event.Op == fsnotify.Write {
             if time.Since(humanChanged) > reverbSpacing {
-                translateGMObject(event.Name)
                 gmChanged = time.Now()
+                translateGMObject(event.Name)
             }
         }
     }
@@ -189,12 +171,47 @@ func translateHumanObject (humanObjPath string) {
     objName := strings.Split(filepath.Base(humanObjPath), ".")[0]
     gmObjPath := filepath.Join(gmObjectsDir, objName + ".object.gmx")
 
-    err := HumanObjectFileToGMObjectFile(humanObjPath, gmObjPath, true)
+    err := HumanObjectFileToGMObjectFile(humanObjPath, gmObjPath)
     if err != nil {
         fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
     } else {
         fmt.Printf("[%v] Translated %v\n",
                 time.Now().Format("15:04:05"), objName)
+        touchProjectFile()
+    }
+}
+
+func translateAndAddHumanObject (humanObjPath string) {
+    objName := strings.Split(filepath.Base(humanObjPath), ".")[0]
+    gmObjPath := filepath.Join(gmObjectsDir, objName + ".object.gmx")
+
+    // GM file not existing before translation meanse we have to add it to the
+    // project file
+
+    _, err := os.Stat(gmObjPath)
+    gmObjFileExisted := !os.IsNotExist(err) 
+
+    // Translate object
+
+    err = HumanObjectFileToGMObjectFile(humanObjPath, gmObjPath)
+    if err != nil {
+        fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
+        return
+    }
+    fmt.Printf("[%v] Translated %v\n", time.Now().Format("15:04:05"),
+            objName)
+    touchProjectFile()
+
+    // If necessary, add to project file
+
+    if !gmObjFileExisted {
+        err = AddObjectToGMProject(objName)
+        if err != nil {
+            fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
+        } else {
+            fmt.Printf("[%v] Project file updated %v\n",
+                    time.Now().Format("15:04:05"), objName)
+        }
     }
 }
 
@@ -213,6 +230,7 @@ func translateGMObject (gmObjPath string) {
 
 func initialTranslateWalkFunc (gmObjPath string,
         info os.FileInfo, err error) error {
+    // TODO: don't go into subdirectories
     if info.IsDir() {
         return nil
     }
@@ -225,152 +243,3 @@ func initialTranslateWalkFunc (gmObjPath string,
     return GMObjectFileToHumanObjectFile(gmObjPath, humanObjPath)
 }
 
-func GMObjectFileToHumanObjectFile (objFilename string,
-        humanFilename string) error {
-    // Read GM object file
-
-    f, err := os.Open(objFilename)
-
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error opening file %v: %v",
-                objFilename, err))
-    }
-
-    defer f.Close()
-    decoder := xml.NewDecoder(f)
-    var obj GMObject = *blankObject()
-    err = decoder.Decode(&obj)
-
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error decoding XML from %v: %v",
-                objFilename, err))
-    }
-
-    // Write human object file
-
-    f, err = os.Create(humanFilename)
-
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error creating file %v: %v",
-                humanFilename, err))
-    }
-
-    defer f.Close()
-    w := bufio.NewWriter(f)
-    err = WriteHumanObject(obj, w)
-
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error writing human object to %v: %v",
-                humanFilename, err))
-    }
-
-    w.Flush()
-    return nil
-}
-
-func ReadGMObjectFile (objFilename string , obj *GMObject) error {
-    f, err := os.Open(objFilename)
-
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error opening file %v: %v",
-                objFilename, err))
-    }
-
-    defer f.Close()
-    decoder := xml.NewDecoder(f)
-    err = decoder.Decode(&obj)
-
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error decoding XML from %v: %v",
-                objFilename, err))
-    }
-
-    return nil
-}
-
-func HumanObjectFileToGMObjectFile (humanFilename string,
-        objFilename string, expectGMExists bool) error {
-    
-    var obj GMObject = *blankObject()
-    if expectGMExists {
-        err := ReadGMObjectFile(objFilename, &obj)
-        if err != nil {
-            return err
-        }
-    } else {
-        _, err := os.Stat(objFilename)
-        if err != nil {
-            return errors.New(fmt.Sprintf(
-                    "Error Stat-ing human object file %v : %v",
-                    objFilename, err))
-        }
-        if !os.IsNotExist(err) {
-            return errors.New(fmt.Sprintf(
-                    "Expecting GM Object file %v not to exist, but it does",
-                    objFilename))
-        }
-    }
-
-    // Read human object file
-
-    f, err := os.Open(humanFilename)
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error opening file %v: %v",
-                humanFilename, err))
-    }
-    defer f.Close()
-
-    r := bufio.NewReader(f)
-    err = ReadHumanObject(r, &obj)
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error reading human object file %v: %v",
-                humanFilename, err))
-    }
-
-    // Write GM object file
-
-    f, err = os.Create(objFilename)
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error opening file %v: %v",
-                objFilename, err))
-    }
-    defer f.Close()
-
-    encoder := xml.NewEncoder(f)
-    encoder.Indent("", "  ")
-    err = encoder.Encode(obj)
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error writing XML to %v: %v",
-                objFilename, err))
-    }
-
-    return nil
-}
-
-func AddObjectToGMProject (objName string) error {
-    projData, err := ioutil.ReadFile(projectPath)
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error opening project file: %v",
-                projectPath))
-    }
-
-    lines := strings.Split(string(projData), "\r\n")
-    var i int
-    for ii, line := range lines {
-        if line == "  </objects>" {
-            i = ii
-            break
-        }
-    }
-    toInsert := fmt.Sprintf("    <object>objects\\%v</object>", objName)
-    lines = append(lines[:i], append([]string{toInsert}, lines[i:]...)...)
-
-    projString := strings.Join(lines, "\r\n")
-    err = ioutil.WriteFile(projectPath, []byte(projString), os.ModePerm)
-    if err != nil {
-        return errors.New(fmt.Sprintf("Error writing project file: %v",
-                projectPath))
-    }
-
-    return nil
-}

@@ -52,6 +52,34 @@ func InitTranslations () {
 }
 
 func WriteHumanObject (obj GMObject, w io.Writer) error {
+    // Properties
+
+    if obj.SpriteName != gmUndefinedStr {
+        fmt.Fprintf(w, "Sprite %v\n", obj.SpriteName)
+    }
+    if obj.Visible == 0 {
+        fmt.Fprintf(w, "Invisible\n")
+    }
+    if obj.Solid != 0 {
+        fmt.Fprintf(w, "Solid\n")
+    }
+    if obj.Persistent != 0 {
+        fmt.Fprintf(w, "Persistent\n")
+    }
+    if obj.Depth != 0 {
+        fmt.Fprintf(w, "Depth %v\n", obj.Depth)
+    }
+    if obj.ParentName != gmUndefinedStr {
+        fmt.Fprintf(w, "Parent %v\n", obj.ParentName)
+    }
+    if obj.MaskName != gmUndefinedStr {
+        fmt.Fprintf(w, "Mask %v\n", obj.MaskName)
+    }
+
+    fmt.Fprintf(w, "\n")
+
+    // Events
+
     for _, event := range obj.Events.Events {
         ec := EventCode{Type:event.Type,Number:event.Number}
         if _, ok := wildcardCodes[ec.Type]; ok {
@@ -72,6 +100,7 @@ func WriteHumanObject (obj GMObject, w io.Writer) error {
         }
         fmt.Fprintf(w, "%v\n", event.Actions[0].Arguments.Arguments[0].String)
     }
+
     return nil
 }
 
@@ -93,6 +122,8 @@ func blankEvent() *Event {
 func ReadHumanObject (r io.Reader, obj *GMObject) error {
     // Clear out old events
     obj.Events.Events = make([]*Event, 0)
+
+    // Scan file line by line
 
     scanner := bufio.NewScanner(r)
     lineNum := 0
@@ -151,24 +182,71 @@ func ReadHumanObject (r io.Reader, obj *GMObject) error {
                     return errors.New(fmt.Sprintf(
                             "Alarm event needs number on line %v",
                             lineNum))
-                } else if i, err := strconv.Atoi(tokens[1]); err != nil || i<0 || i>11 {
+                }
+                i, err := strconv.Atoi(tokens[1])
+                if err != nil || i<0 || i>11 {
                     return errors.New(fmt.Sprintf(
                             "Alarm event has invalid number on line %v",
                             lineNum))
-                } else {
-                    curEvent.Number = i
                 }
+                curEvent.Number = i
             }
 
-        // Code lines (all non-event lines are code lines)
+        // Non-event lines are property or code lines
 
         } else {
+            // Property
             if curEvent == nil {
-                if len(strings.Trim(line, " ")) != 0 {
-                    return errors.New(fmt.Sprintf(
-                            "No content allowed above first event: line %v",
-                            lineNum))
+                tokens := strings.Split(strings.Trim(line, " "), " ")
+                if tokens[0] != "" {
+                    if tokens[0] == "Sprite" {
+                        if len(tokens) < 2 {
+                            return errors.New(fmt.Sprintf(
+                                    "Sprite property needs name on line %v",
+                                    lineNum))
+                        }
+                        obj.SpriteName = tokens[1]
+                    } else if tokens[0] == "Invisible" {
+                        obj.Visible = 0
+                    } else if tokens[0] == "Solid" {
+                        obj.Solid = -1
+                    } else if tokens[0] == "Persistent" {
+                        obj.Persistent = -1
+                    } else if tokens[0] == "Depth" {
+                        if len(tokens) < 2 {
+                            return errors.New(fmt.Sprintf(
+                                    "Sprite property needs name on line %v",
+                                    lineNum))
+                        }
+                        i, err := strconv.Atoi(tokens[1])
+                        if err != nil {
+                            return errors.New(fmt.Sprintf(
+                                    "Invalid depth number %v on line %v\n",
+                                    tokens[1], lineNum))
+                        }
+                        obj.Depth = i
+                    } else if tokens[0] == "Parent" {
+                        if len(tokens) < 2 {
+                            return errors.New(fmt.Sprintf(
+                                    "Parent property needs name on line %v",
+                                    lineNum))
+                        }
+                        obj.ParentName = tokens[1]
+                    } else if tokens[0] == "Mask" {
+                        if len(tokens) < 2 {
+                            return errors.New(fmt.Sprintf(
+                                    "Mask property needs name on line %v",
+                                    lineNum))
+                        }
+                        obj.MaskName = tokens[1]
+                    } else {
+                        fmt.Printf("len tokens: %v\n", len(tokens))
+                        return errors.New(fmt.Sprintf(
+                                "Unrecognized object property %v on line %v\n",
+                                tokens[0], lineNum))
+                    }
                 }
+            // Code
             } else {
                 curEvent.Actions[0].Arguments.Arguments[0].String += line + "\n"
             }
