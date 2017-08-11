@@ -13,35 +13,64 @@ import (
     "time"
     "os/signal"
     "syscall"
+    "github.com/sqweek/dialog"
 )
 
-const humanDir   string = "NiceObjects"
-const projectDir string = "example.gmx"
-var gmObjectsDir = filepath.Join(projectDir, "objects")
+var humanDir, _ = filepath.Abs("./NiceObjects")
 var projectPath string
+var projectDir  string
+var gmObjectsDir string
 
 const reverbSpacing time.Duration = 1 * time.Second
 var gmChanged       time.Time
 var humanChanged    time.Time
 
+const usage string = `Usage:
+NiceObjects.exe     (Opens flie picker)
+NiceObjects.exe path/to/project.project.gmx`
+
 func main () {
     InitTranslations()
-    err := filepath.Walk(projectDir, func (path string, info os.FileInfo, err error) error {
-        dotSep := strings.SplitN(filepath.Base(path), ".", 2)
-        if len(dotSep) == 2 && dotSep[1] == "project.gmx" {
-            projectPath = path
+
+    // Parse arguments
+
+    // No args opens windows file picker for project path
+    if len(os.Args) < 2 {
+        var err error
+        projectPath, err = dialog.File().
+                Title("Select GMS project file").
+                SetStartDir(".").
+                Filter("GMS project file (*.project.gmx)", "project.gmx").
+                Load()
+        if err != nil {
+            fmt.Printf("Error in project file select dialog: %v\n", err)
+            return
         }
-        return nil
-    })
+    } else if len(os.Args) == 2 && os.Args[1] == "--help" {
+        fmt.Println(usage)
+        return
+    // One arg (non-help) specifies project path
+    } else if len(os.Args) == 2 {
+        projectPath = os.Args[1]
+    } else {
+        fmt.Println(usage)
+        return
+    }
+
+    // Verify project path ok and compute relative paths
+
+    _, err := os.Stat(projectPath)
     if err != nil {
-        fmt.Printf("Error searching for .project.gmx file: %v\n", err)
+        fmt.Printf("Error Stat-ing project file %v : %v\n",
+            projectPath, err)
         return
     }
-    if projectPath == "" {
-        fmt.Printf("Couldn't find .project.gmx file in directory %v\n",
-                projectDir)
+    if os.IsNotExist(err) {
+        fmt.Printf("Project file %v does not exist\n", projectPath)
         return
     }
+    projectDir, _ = filepath.Split(projectPath)
+    gmObjectsDir = filepath.Join(projectDir, "objects")
 
     // Start listening for SIGINT (Ctrl-C)
 
@@ -83,7 +112,7 @@ func main () {
             case event := <-watcher.Events:
                 processWatcherEvent(event)
             case err := <-watcher.Errors:
-                fmt.Printf("Fsnotify Watcher error: %v\n", err)
+                fmt.Printf("Fsnotify watcher error: %v\n", err)
             }
         }
     }()
@@ -98,13 +127,13 @@ func main () {
 
     // Surrender this goroutine to the watcher, and wait for control signal
 
-    fmt.Println("Listening")
+    fmt.Println("Listening (Ctrl-C to quit)")
 
     <-sigchan
 
-    // Remove created directory
+    // Upon control signal, remove created directory
 
-    fmt.Println("Signal received, removing NiceObjects directory...")
+    fmt.Println("Quit signal received, removing NiceObjects directory...")
     err = os.RemoveAll(humanDir)
     if err != nil {
         fmt.Printf("Error removing NiceObjects directory: %v\n", err)
@@ -270,6 +299,11 @@ func HumanObjectFileToGMObjectFile (humanFilename string,
         }
     } else {
         _, err := os.Stat(objFilename)
+        if err != nil {
+            return errors.New(fmt.Sprintf(
+                    "Error Stat-ing human object file %v : %v",
+                    objFilename, err))
+        }
         if !os.IsNotExist(err) {
             return errors.New(fmt.Sprintf(
                     "Expecting GM Object file %v not to exist, but it does",
