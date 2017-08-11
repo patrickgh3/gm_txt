@@ -1,12 +1,10 @@
 Features Todo
 
-Scripts support
 Some kind of documentation for event names, object properties
 Condense multiple GM actions into one
-Possibly remove duplicate messages if others get them
 Physics properties
 Discard duplicate/triplicate events on a human object file
-Hande objects or scripts folder not created?
+Hande objects or scripts folder not created? Same with GM project file?
 
 
 

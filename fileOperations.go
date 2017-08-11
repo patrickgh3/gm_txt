@@ -116,7 +116,7 @@ func cp(dst, src string) error {
     return d.Close()
 }
 
-func AddObjectToGMProject (objName string) error {
+func AppendResourceToGMProject (objName, resType, resDir string) error {
     projData, err := ioutil.ReadFile(projectPath)
     if err != nil {
         return errors.New(fmt.Sprintf("Error opening project file: %v",
@@ -124,14 +124,16 @@ func AddObjectToGMProject (objName string) error {
     }
 
     lines := strings.Split(string(projData), "\r\n")
+    needle := fmt.Sprintf("  </%vs>", resType)
     var i int
     for ii, line := range lines {
-        if line == "  </objects>" {
+        if line == needle {
             i = ii
             break
         }
     }
-    toInsert := fmt.Sprintf("    <object>objects\\%v</object>", objName)
+    toInsert := fmt.Sprintf("    <%v>%v\\%v</%v>",
+            resType, resDir, objName, resType)
     lines = append(lines[:i], append([]string{toInsert}, lines[i:]...)...)
 
     projString := strings.Join(lines, "\r\n")
