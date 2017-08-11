@@ -3,11 +3,12 @@ package main
 import (
     "fmt"
     "os"
+    "os/signal"
+    "bufio"
     "path/filepath"
     "strings"
     "github.com/fsnotify/fsnotify"
     "time"
-    "os/signal"
     "syscall"
     "github.com/sqweek/dialog"
 )
@@ -160,9 +161,25 @@ func main () {
                 err)
     }
 
+    // Listen for typed commands on Stdin
+
+    go func () {
+        scan := bufio.NewScanner(os.Stdin)
+        for scan.Scan() {
+            text := scan.Text()
+            if text == "help" {
+                fmt.Println(helpMessage)
+            } else if text == "objects" {
+                fmt.Println(objectsHelpMessage)
+            } else if text == "events" {
+                fmt.Println(eventsHelpMessage())
+            }
+        }
+    }()
+
     // Surrender this goroutine to the watcher, and wait for control signal
 
-    fmt.Println("Listening (Ctrl-C to quit)")
+    fmt.Println("Listening (Ctrl-C to quit) (type \"help\" for help)")
 
     <-sigchan
 

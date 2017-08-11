@@ -1,9 +1,8 @@
 Features Todo
 
-Some kind of documentation for event names, object properties
+Rest of events
 Condense multiple GM actions into one
 Physics properties
-Discard duplicate/triplicate events on a human object file
 Hande objects or scripts folder not created? Same with GM project file?
 
 
