@@ -1,7 +1,5 @@
 Features Todo
 
-Rest of events
-Condense multiple GM actions into one
 Physics properties
 Hande objects or scripts folder not created? Same with GM project file?
 

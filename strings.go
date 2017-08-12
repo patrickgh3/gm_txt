@@ -15,6 +15,7 @@ Translation supports:
 .ogml files are translated objects. Type "objects" for the .ogml format.
 
 Note that creating new .ogml or .gml files adds them to the project.
+Also note that physics properties are not preserved.
 
 This window will log each translation, as well as translation errors.
 `

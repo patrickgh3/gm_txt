@@ -137,7 +137,11 @@ func WriteHumanObject (obj GMObject, w io.Writer) error {
         } else {
             fmt.Fprintf(w, "---%v\n", name)
         }
-        fmt.Fprintf(w, "%v\n", event.Actions[0].Arguments.Arguments[0].String)
+
+        for _, action := range event.Actions {
+            fmt.Fprintf(w, "%v", action.Arguments.Arguments[0].String)
+        }
+        fmt.Fprintf(w, "\n")
     }
 
     return nil
