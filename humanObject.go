@@ -30,6 +30,7 @@ func InitTranslations () {
     addEventCodeTranslation("Begin Step", 3, 1)
     addEventCodeTranslation("End Step", 3, 2)
     addEventCodeTranslation("Collision", 4, 0)
+    addEventCodeTranslation("Keyboard", 5, 0)
 
     addEventCodeTranslation("Outside Room", 7, 0)
     addEventCodeTranslation("Intersect Boundary", 7, 1)
@@ -69,6 +70,9 @@ func InitTranslations () {
     addEventCodeTranslation("Draw GUI End", 8, 75)
     addEventCodeTranslation("Pre Draw", 8, 76)
     addEventCodeTranslation("Post Draw", 8, 77)
+
+    addEventCodeTranslation("Key Press", 9, 0)
+    addEventCodeTranslation("Key Release", 10, 0)
 }
 
 func WriteHumanObject (obj GMObject, w io.Writer) error {
@@ -110,6 +114,8 @@ func WriteHumanObject (obj GMObject, w io.Writer) error {
             ec.Number = 40
         } else if (ec.Type == 7 && ec.Number >= 50 && ec.Number <= 57) {
             ec.Number = 50
+        } else if (ec.Type == 5 || ec.Type == 9 || ec.Type == 10) {
+            ec.Number = 0
         }
         name, ok := eventCodeToName[ec]
         if !ok {
@@ -119,7 +125,8 @@ func WriteHumanObject (obj GMObject, w io.Writer) error {
 
         if name == "Collision" {
             fmt.Fprintf(w, "---%v %v\n", name, event.ObjectName)
-        } else if name == "Alarm" {
+        } else if name == "Alarm" || name == "Keyboard" ||
+                name == "Key Press" || name == "Key Release" {
             fmt.Fprintf(w, "---%v %v\n", name, event.Number)
         } else if name == "User Defined" {
             fmt.Fprintf(w, "---%v %v\n", name, event.Number-10)
@@ -234,6 +241,15 @@ func ReadHumanObject (r io.Reader, obj *GMObject) error {
             } else if eventName == "Alarm" {
                 i, err := parseIntArg(
                         tokens, eventName, lineNum, 1, 0, 11)
+                if err != nil {
+                    return err
+                }
+                curEvent.Number = i
+            } else if eventName == "Keyboard" || eventName == "Key Press" ||
+                    eventName == "Key Release" {
+                i, err := parseIntArg(
+                        tokens, eventName, lineNum,
+                        len(strings.Split(eventName, " ")), 0, 1000)
                 if err != nil {
                     return err
                 }

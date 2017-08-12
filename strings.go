@@ -51,19 +51,24 @@ func eventsHelpMessage () string {
     sort.Strings(names)
     i := 0
     for _, name := range names {
-        if i == 4 {
+        if i == 3 {
             i = 0
             s += "\n"
         }
         if name == "Alarm" {
-            name = "Alarm [num]"
+            name += " [num]"
         } else if name == "Collision" {
-            name = "Collision [obj]"
+            name += " [obj]"
+        } else if name == "User Defined" || name == "Boundary View" ||
+                name == "Outside View" || name == "Keyboard" ||
+                name == "Key Press" || name == "Key Release" {
+            name += " [num]"
         }
-        s += fmt.Sprintf("%-20s", name)
+        s += fmt.Sprintf("%-25s", name)
         i++
     }
-    s += "\n"
+    s += "\nNote that keyboard events have numbers, not key names, "+
+            "for simplicity.\n"
     return s
 }
 
