@@ -16,7 +16,6 @@ type EventCode struct {
 
 var eventCodeToName = make(map[EventCode]string)
 var eventNameToCode = make(map[string]EventCode)
-var wildcardCodes = make(map[int]bool)
 
 func addEventCodeTranslation(Name string, Type int, Number int) {
     eventCodeToName[EventCode{Type:Type,Number:Number}] = Name
@@ -27,7 +26,6 @@ func InitTranslations () {
     addEventCodeTranslation("Create", 0, 0)
     addEventCodeTranslation("Destroy", 1, 0)
     addEventCodeTranslation("Alarm", 2, 0)
-    wildcardCodes[2] = true
     addEventCodeTranslation("Step", 3, 0)
     addEventCodeTranslation("Begin Step", 3, 1)
     addEventCodeTranslation("End Step", 3, 2)
@@ -36,9 +34,31 @@ func InitTranslations () {
     addEventCodeTranslation("Outside Room", 7, 0)
     addEventCodeTranslation("Intersect Boundary", 7, 1)
     addEventCodeTranslation("Game Start", 7, 2)
+    addEventCodeTranslation("Game End", 7, 3)
+    addEventCodeTranslation("Room Start", 7, 4)
+    addEventCodeTranslation("Room End", 7, 5)
+    addEventCodeTranslation("No More Lives", 7, 6)
+    addEventCodeTranslation("Animation End", 7, 7)
+    addEventCodeTranslation("End Of Path", 7, 8)
+    addEventCodeTranslation("No More Health", 7, 9)
+    addEventCodeTranslation("User Defined", 7, 10) // 10-25
+
+    addEventCodeTranslation("Outside View", 7, 40) //40-47
+    addEventCodeTranslation("Boundary View", 7, 50) // 50-57
+    addEventCodeTranslation("Animation Update", 7, 58)
     addEventCodeTranslation("Image Loaded", 7, 60)
     addEventCodeTranslation("HTTP", 7, 62)
     addEventCodeTranslation("Dialog", 7, 63)
+    addEventCodeTranslation("IAP", 7, 66)
+    addEventCodeTranslation("Cloud", 7, 67)
+    addEventCodeTranslation("Networking", 7, 68)
+    addEventCodeTranslation("Steam", 7, 69)
+    addEventCodeTranslation("Social", 7, 70)
+    addEventCodeTranslation("Push Notification", 7, 71)
+    addEventCodeTranslation("Save / Load", 7, 72)
+    addEventCodeTranslation("Audio Recording", 7, 73)
+    addEventCodeTranslation("Audio Playback", 7, 74)
+    addEventCodeTranslation("System Event", 7, 75)
 
     addEventCodeTranslation("Draw", 8, 0)
     addEventCodeTranslation("Draw GUI", 8, 64)
@@ -82,8 +102,14 @@ func WriteHumanObject (obj GMObject, w io.Writer) error {
 
     for _, event := range obj.Events.Events {
         ec := EventCode{Type:event.Type,Number:event.Number}
-        if _, ok := wildcardCodes[ec.Type]; ok {
+        if ec.Type == 2 {
             ec.Number = 0
+        } else if (ec.Type == 7 && ec.Number >= 10 && ec.Number <= 25) {
+            ec.Number = 10
+        } else if (ec.Type == 7 && ec.Number >= 40 && ec.Number <= 47) {
+            ec.Number = 40
+        } else if (ec.Type == 7 && ec.Number >= 50 && ec.Number <= 57) {
+            ec.Number = 50
         }
         name, ok := eventCodeToName[ec]
         if !ok {
@@ -95,6 +121,12 @@ func WriteHumanObject (obj GMObject, w io.Writer) error {
             fmt.Fprintf(w, "---%v %v\n", name, event.ObjectName)
         } else if name == "Alarm" {
             fmt.Fprintf(w, "---%v %v\n", name, event.Number)
+        } else if name == "User Defined" {
+            fmt.Fprintf(w, "---%v %v\n", name, event.Number-10)
+        } else if name == "Outside View" {
+            fmt.Fprintf(w, "---%v %v\n", name, event.Number-40)
+        } else if name == "Boundary View" {
+            fmt.Fprintf(w, "---%v %v\n", name, event.Number-50)
         } else {
             fmt.Fprintf(w, "---%v\n", name)
         }
@@ -117,6 +149,22 @@ func blankEvent() *Event {
             WhoName:"self", Relative:0, IsNot:0, Arguments:args}
     actions := []Action{action}
     return &Event{Actions:actions}
+}
+
+func parseIntArg(tokens []string, evName string, lineNum int,
+        intPos int, min int, max int) (int, error) {
+    if len(tokens) < intPos+1 {
+        return 0, errors.New(fmt.Sprintf(
+                "%v event needs number on line %v",
+                evName, lineNum))
+    }
+    i, err := strconv.Atoi(tokens[intPos])
+    if err != nil || i<min || i>max {
+        return 0, errors.New(fmt.Sprintf(
+                "%v event has invalid number on line %v",
+                evName, lineNum))
+    }
+    return i, nil
 }
 
 func ReadHumanObject (r io.Reader, obj *GMObject) error {
@@ -148,16 +196,22 @@ func ReadHumanObject (r io.Reader, obj *GMObject) error {
             eventName := eventTitle
             code, ok := eventNameToCode[eventName]
             if !ok {
-
                 // Try first token as name
 
                 eventName = tokens[0]
                 code, ok = eventNameToCode[eventName]
 
                 if !ok {
-                    return errors.New(fmt.Sprintf(
-                            "Unrecognized event title %v on line %v",
-                            eventName, lineNum))
+                    // Try first two tokens as name
+
+                    eventName = tokens[0] + " " + tokens[1]
+                    code, ok = eventNameToCode[eventName]
+
+                    if !ok {
+                        return errors.New(fmt.Sprintf(
+                                "Unrecognized event title %v on line %v",
+                                eventName, lineNum))
+                    }
                 }
             }
 
@@ -178,18 +232,33 @@ func ReadHumanObject (r io.Reader, obj *GMObject) error {
                     curEvent.ObjectName = tokens[1]
                 }
             } else if eventName == "Alarm" {
-                if len(tokens) < 2 {
-                    return errors.New(fmt.Sprintf(
-                            "Alarm event needs number on line %v",
-                            lineNum))
-                }
-                i, err := strconv.Atoi(tokens[1])
-                if err != nil || i<0 || i>11 {
-                    return errors.New(fmt.Sprintf(
-                            "Alarm event has invalid number on line %v",
-                            lineNum))
+                i, err := parseIntArg(
+                        tokens, eventName, lineNum, 1, 0, 11)
+                if err != nil {
+                    return err
                 }
                 curEvent.Number = i
+            } else if eventName == "User Defined" {
+                i, err := parseIntArg(
+                        tokens, eventName, lineNum, 2, 0, 15)
+                if err != nil {
+                    return err
+                }
+                curEvent.Number = i + 10
+            } else if eventName == "Outside View" {
+                i, err := parseIntArg(
+                        tokens, eventName, lineNum, 2, 0, 7)
+                if err != nil {
+                    return err
+                }
+                curEvent.Number = i + 40
+            } else if eventName == "Boundary View" {
+                i, err := parseIntArg(
+                        tokens, eventName, lineNum, 2, 0, 7)
+                if err != nil {
+                    return err
+                }
+                curEvent.Number = i + 50
             }
 
         // Non-event lines are property or code lines
