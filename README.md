@@ -27,7 +27,7 @@ files in the above format (.ogml). When these files are modified or created,
 they are translated back to the actual project's files. Script files (.gml) are
 simply copied back and forth since they require no translation.
 
-Sample output:
+Sample session output:
 
 ```
 Initializing NiceObjects directory...
@@ -41,14 +41,17 @@ Success
 ```
 
 The lists of object properties and event names, along with general documentation
-are found by typing "help" after starting the tool. Also see the readme.txt in
-the download for helpful GML syntax links.
+are found by typing "help" after starting the tool. Also see readme_dist.txt for
+helpful GML syntax links.
 
 I made this to satisfy my own need, and I hope it's useful to a few other people
-too. Don't hesitate to contact me if you have any suggestions.
+too. Don't hesitate to contact me if you have any suggestions or bug reports.
 Discord: Patrick#0303
 
 Uses [sqweek/dialog](https://github.com/sqweek/dialog) for the file open dialog.
+
+For Vim syntax highlighting check out [nessss/vim-gml](https://github.com/nessss/vim-gml)
+(you'll want to add .ogml to the ftdetect file)
 
 [Download (TODO)]()
 ---
