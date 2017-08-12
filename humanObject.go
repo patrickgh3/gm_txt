@@ -215,7 +215,9 @@ func ReadHumanObject (r io.Reader, obj *GMObject) error {
                 if !ok {
                     // Try first two tokens as name
 
-                    eventName = tokens[0] + " " + tokens[1]
+                    if len(tokens) >= 2 {
+                        eventName = tokens[0] + " " + tokens[1]
+                    }
                     code, ok = eventNameToCode[eventName]
 
                     if !ok {
