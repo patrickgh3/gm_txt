@@ -64,7 +64,7 @@ func main () {
 
     // Verify project path ok and compute relative paths
 
-    _, err := os.Stat(projectPath)
+    fi, err := os.Stat(projectPath)
     if err != nil {
         fmt.Printf("Error Stat-ing project file %v : %v\n",
             projectPath, err)
@@ -72,6 +72,10 @@ func main () {
     }
     if os.IsNotExist(err) {
         fmt.Printf("Project file %v does not exist\n", projectPath)
+        return
+    }
+    if fi.IsDir() {
+        fmt.Printf("Must select .project.gmx file, not directory\n")
         return
     }
     projectDir, _ = filepath.Split(projectPath)
@@ -106,7 +110,13 @@ func main () {
                 }
                 objName := dotSep[0] + ".ogml"
                 humanObjPath := filepath.Join(humanDir, objName)
-                return GMObjectFileToHumanObjectFile(gmObjPath, humanObjPath)
+                err, shouldSkip := GMObjectFileToHumanObjectFile(gmObjPath,
+                        humanObjPath)
+                if shouldSkip {
+                    fmt.Printf("Skipping %v: %v\n", objName, err)
+                    return nil
+                }
+                return err
             })
     if err != nil {
         fmt.Printf("Error during initial translation of all GM objects "+
@@ -330,7 +340,7 @@ func translateGMObject (gmObjPath string) {
     objName := strings.Split(filepath.Base(gmObjPath), ".")[0]
     humanObjPath := filepath.Join(humanDir, objName + ".ogml")
 
-    err := GMObjectFileToHumanObjectFile(gmObjPath, humanObjPath)
+    err, _ := GMObjectFileToHumanObjectFile(gmObjPath, humanObjPath)
     if err != nil {
         fmt.Printf("[%v] (From GM) %v\n", time.Now().Format("15:04:05"), err)
     } else {

@@ -12,15 +12,16 @@ import (
     "encoding/xml"
 )
 
+// Returns (error, shouldSkip)
 func GMObjectFileToHumanObjectFile (objFilename string,
-        humanFilename string) error {
+        humanFilename string) (error, bool) {
     // Read GM object file
 
     f, err := os.Open(objFilename)
 
     if err != nil {
         return errors.New(fmt.Sprintf("Error opening file %v: %v",
-                objFilename, err))
+                objFilename, err)), false
     }
 
     defer f.Close()
@@ -30,7 +31,17 @@ func GMObjectFileToHumanObjectFile (objFilename string,
 
     if err != nil {
         return errors.New(fmt.Sprintf("Error decoding XML from %v: %v",
-                objFilename, err))
+                objFilename, err)), false
+    }
+
+    // Validate GM object
+
+    for _, event := range obj.Events.Events {
+        for _, action := range event.Actions {
+            if len(action.Arguments.Arguments) == 0 {
+                return errors.New("Drag n Drop in an event"), true
+            }
+        }
     }
 
     // Write human object file
@@ -39,7 +50,7 @@ func GMObjectFileToHumanObjectFile (objFilename string,
 
     if err != nil {
         return errors.New(fmt.Sprintf("Error creating file %v: %v",
-                humanFilename, err))
+                humanFilename, err)), false
     }
 
     defer f.Close()
@@ -48,11 +59,11 @@ func GMObjectFileToHumanObjectFile (objFilename string,
 
     if err != nil {
         return errors.New(fmt.Sprintf("Error writing human object to %v: %v",
-                humanFilename, err))
+                humanFilename, err)), false
     }
 
     w.Flush()
-    return nil
+    return nil, false
 }
 
 func HumanObjectFileToGMObjectFile (humanFilename string,

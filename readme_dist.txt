@@ -1,6 +1,9 @@
+Place the exe wherever you want the NiceObjects folder to be created.
+
 Usage:
 NiceObjects.exe     (Opens flie picker)
 NiceObjects.exe path/to/project.project.gmx
+
 Type "help" once running for more info.
 I recommended you back up your project before running (or use version control!!)
 

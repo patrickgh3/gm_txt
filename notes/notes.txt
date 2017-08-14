@@ -1,7 +1,11 @@
 Features Todo
 
+Add note to auto reload files in GM in help or startup message
 Physics properties
-Hande objects or scripts folder not created? Same with GM project file?
+Actual new lines instead of the xml code if possible
+Handle objects or scripts folder not created? Same with GM project file?
+    ^ maybe detect and quit
+Parser should detect if multiple of same event type
 
 
 
