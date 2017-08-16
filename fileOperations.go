@@ -10,6 +10,7 @@ import (
     "strings"
     "time"
     "encoding/xml"
+    "bytes"
 )
 
 // Returns (error, shouldSkip)
@@ -96,7 +97,8 @@ func HumanObjectFileToGMObjectFile (humanFilename string,
     }
     defer f.Close()
 
-    encoder := xml.NewEncoder(f)
+    w := MyWriter{File:f}
+    encoder := xml.NewEncoder(w)
     encoder.Indent("", "  ")
     err = encoder.Encode(obj)
     if err != nil {
@@ -105,6 +107,20 @@ func HumanObjectFileToGMObjectFile (humanFilename string,
     }
 
     return nil
+}
+
+// MyWriter un-escapes XML newlines then writes to a file.
+// Implements io.PipeWriter
+type MyWriter struct {
+    File *os.File
+}
+func (w MyWriter) Close() error { return w.File.Close() }
+func (w MyWriter) CloseWithError(err error) error { return nil }
+func (w MyWriter) Write(data []byte) (n int, err error) {
+    n = len(data)
+    data = bytes.Replace(data, []byte("&#xA;"), []byte("\n"), -1)
+    _, err = w.File.Write(data)
+    return
 }
 
 // https://gist.github.com/elazarl/5507969
