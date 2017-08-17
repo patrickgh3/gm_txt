@@ -106,10 +106,19 @@ func HumanObjectFileToGMObjectFile (humanFilename string,
                 objFilename, err))
     }
 
+    if len(obj.PhysicsShapePoints) == 0 {
+        err = AddEmptyPhysicsShapePoints(objFilename)
+        if err != nil {
+            return errors.New(fmt.Sprintf(
+                    "Error writing extra PhysicsShapePoints line to %v: %v",
+                    objFilename, err))
+        }
+    }
+
     return nil
 }
 
-// MyWriter un-escapes XML newlines then writes to a file.
+// MyWriter un-escapes XML newlines and converts to windows-style newlines.
 // Implements io.PipeWriter
 type MyWriter struct {
     File *os.File
@@ -119,6 +128,7 @@ func (w MyWriter) CloseWithError(err error) error { return nil }
 func (w MyWriter) Write(data []byte) (n int, err error) {
     n = len(data)
     data = bytes.Replace(data, []byte("&#xA;"), []byte("\n"), -1)
+    data = bytes.Replace(data, []byte("\n"), []byte("\r\n"), -1)
     _, err = w.File.Write(data)
     return
 }
@@ -144,27 +154,35 @@ func cp(dst, src string) error {
 }
 
 func AppendResourceToGMProject (objName, resType, resDir string) error {
-    projData, err := ioutil.ReadFile(projectPath)
+    searchStr := fmt.Sprintf("  </%vs>", resType)
+    toInsert := fmt.Sprintf("    <%v>%v\\%v</%v>",
+            resType, resDir, objName, resType)
+    return FileInsertLine(searchStr, toInsert, projectPath)
+}
+
+func AddEmptyPhysicsShapePoints (gmObjFilename string) error {
+    return FileInsertLine("</object>", "  <PhysicsShapePoints/>", gmObjFilename)
+}
+
+func FileInsertLine (searchFor, toInsert, filename string) error {
+    projData, err := ioutil.ReadFile(filename)
     if err != nil {
-        return errors.New(fmt.Sprintf("Error opening project file: %v",
+        return errors.New(fmt.Sprintf("Error opening file: %v",
                 projectPath))
     }
 
     lines := strings.Split(string(projData), "\r\n")
-    needle := fmt.Sprintf("  </%vs>", resType)
     var i int
     for ii, line := range lines {
-        if line == needle {
+        if line == searchFor {
             i = ii
             break
         }
     }
-    toInsert := fmt.Sprintf("    <%v>%v\\%v</%v>",
-            resType, resDir, objName, resType)
     lines = append(lines[:i], append([]string{toInsert}, lines[i:]...)...)
 
     projString := strings.Join(lines, "\r\n")
-    err = ioutil.WriteFile(projectPath, []byte(projString), os.ModePerm)
+    err = ioutil.WriteFile(filename, []byte(projString), os.ModePerm)
     if err != nil {
         return errors.New(fmt.Sprintf("Error writing project file: %v",
                 projectPath))
