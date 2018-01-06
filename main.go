@@ -13,7 +13,7 @@ import (
     "github.com/sqweek/dialog"
 )
 
-var humanDir, _ = filepath.Abs("./NiceObjects")
+var humanDir     string
 var projectPath  string
 var projectDir   string
 var gmObjectsDir string
@@ -29,10 +29,9 @@ var lastGMFileChanged    string
 var lastHumanFileChanged string
 
 const usage string = `Usage:
-NiceObjects.exe     (Opens flie picker)
-NiceObjects.exe path/to/project.project.gmx`
-
-const touchProject = false
+gm_txt.exe [project_file]
+If you provide no arguments, it'll open a file picker dialog.
+`
 
 func main () {
     InitTranslations()
@@ -51,18 +50,21 @@ func main () {
             fmt.Printf("Error in project file select dialog: %v\n", err)
             return
         }
+
     } else if len(os.Args) == 2 && os.Args[1] == "--help" {
         fmt.Println(usage)
         return
+
     // One arg (non-help) specifies project path
     } else if len(os.Args) == 2 {
         projectPath = os.Args[1]
+
     } else {
         fmt.Println(usage)
         return
     }
 
-    // Verify project path ok and compute relative paths
+    // Verify project path is okay.
 
     fi, err := os.Stat(projectPath)
     if err != nil {
@@ -75,12 +77,16 @@ func main () {
         return
     }
     if fi.IsDir() {
-        fmt.Printf("Must select .project.gmx file, not directory\n")
+        fmt.Printf("Must select project file, not directory\n")
         return
     }
+
+    // Compute relative paths.
+
     projectDir, _ = filepath.Split(projectPath)
     gmObjectsDir = filepath.Join(projectDir, "objects")
     gmScriptsDir = filepath.Join(projectDir, "scripts")
+    humanDir     = filepath.Join(projectDir, "gm_txt")
 
     // Start listening for SIGINT (Ctrl-C)
 
@@ -89,11 +95,9 @@ func main () {
 
     // Create human folder
 
-    fmt.Println("Initializing NiceObjects directory...")
-
     err = os.MkdirAll(humanDir, os.ModePerm)
     if err != nil {
-        fmt.Printf("Error creating NiceObjects directory: %v\n", err)
+        fmt.Printf("Error creating gm_txt directory &v: %v\n", humanDir, err)
         return
     }
 
@@ -195,10 +199,9 @@ func main () {
 
     // Upon control signal, remove created directory
 
-    fmt.Println("Quit signal received, removing NiceObjects directory...")
     err = os.RemoveAll(humanDir)
     if err != nil {
-        fmt.Printf("Error removing NiceObjects directory: %v\n", err)
+        fmt.Printf("Error removing gm_txt directory %v: %v\n", humanDir, err)
         return
     }
     fmt.Println("Success")
@@ -320,7 +323,9 @@ func translateHumanObject (humanObjPath string) {
     } else {
         fmt.Printf("[%v] Translated %v\n", time.Now().Format("15:04:05"),
                 objName)
-        touchProjectFile()
+        // Touching the project file causes GM:Studio to close all
+        // folders, which is annoying.
+        //touchProjectFile()
     }
 
     // If necessary, add to project file

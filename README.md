@@ -36,7 +36,7 @@ bread.gmx/
 Usage
 ---
 ```
-gm_txt.exe [project_path]
+gm_txt.exe [project_file]
 ```
 If you provide no arguments, it'll open a file picker dialog (thanks to [sqweek/dialog](https://github.com/sqweek/dialog)).
 

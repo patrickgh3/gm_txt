@@ -192,7 +192,5 @@ func FileInsertLine (searchFor, toInsert, filename string) error {
 }
 
 func touchProjectFile () {
-    if touchProject {
-        os.Chtimes(projectPath, time.Now(), time.Now())
-    }
+    os.Chtimes(projectPath, time.Now(), time.Now())
 }
