@@ -47,5 +47,5 @@ Building
 
 ```
 go install
-```
 :)
+```

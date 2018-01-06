@@ -101,42 +101,50 @@ func main () {
         return
     }
 
-    // Translate/copy all objects and scripts into human folder
+    // Translate all GM objects.
 
-    err = filepath.Walk(gmObjectsDir,
-            func (gmObjPath string, info os.FileInfo, err error) error {
-                if info.IsDir() {
-                    return nil
-                }
-                dotSep := strings.SplitN(filepath.Base(gmObjPath), ".", 2)
-                if !(len(dotSep) == 2 && dotSep[1] == "object.gmx") {
-                    return nil
-                }
-                objName := dotSep[0] + ".ogml"
-                humanObjPath := filepath.Join(humanDir, objName)
-                err, shouldSkip := GMObjectFileToHumanObjectFile(gmObjPath,
-                        humanObjPath)
-                if shouldSkip {
-                    fmt.Printf("Skipping %v: %v\n", objName, err)
-                    return nil
-                }
-                return err
-            })
+    // implements filepath.WalkFunc
+    f := func (path string, info os.FileInfo, err error) error {
+        // Skip directories and extraneous files.
+        if info.IsDir() || !strings.HasSuffix(path, ".object.gmx") {
+            return nil
+        }
+
+        // Compute translated file path.
+        resourceName := strings.TrimSuffix(filepath.Base(path), ".object.gmx")
+        destPath := filepath.Join(humanDir, resourceName+".gmo")
+
+        // Translate.
+        err = GMObjectFileToHumanObjectFile(path, destPath)
+        if err != nil {
+            fmt.Printf("Error initially translating %v: %v\n",
+                    resourceName, err)
+            return err
+        }
+        return err
+    }
+
+    err = filepath.Walk(gmObjectsDir, f)
     if err != nil {
         fmt.Printf("Error during initial translation of all GM objects "+
                 "to human objects: %v\n", err)
         return
     }
 
-    err = filepath.Walk(gmScriptsDir,
-            func (path string, info os.FileInfo, err error) error {
-                if info.IsDir() || filepath.Ext(path) != ".gml" {
-                    return nil
-                }
-                fn := filepath.Base(path)
-                humanScriptPath := filepath.Join(humanDir, fn)
-                return cp(humanScriptPath, path)
-            })
+    // Copy over all GM scripts.
+
+    // implements filepath.WalkFunc
+    f = func (path string, info os.FileInfo, err error) error {
+        // Skip directories and extraneous files.
+        if info.IsDir() || filepath.Ext(path) != ".gml" {
+            return nil
+        }
+
+        destPath := filepath.Join(humanDir, filepath.Base(path))
+        return cp(destPath, path)
+    }
+
+    err = filepath.Walk(gmScriptsDir, f)
     if err != nil {
         fmt.Printf("Error during initial copying of scripts: %v\n", err)
         return
@@ -211,7 +219,7 @@ func processWatcherEvent (event fsnotify.Event) {
     if event.Op == fsnotify.Write {
         ext := filepath.Ext(event.Name)
         isHuman := strings.HasPrefix(event.Name, humanDir)
-        isHumanObj := isHuman && ext == ".ogml"
+        isHumanObj := isHuman && ext == ".gmo"
         isHumanScript := isHuman && ext == ".gml"
         isGMObj := strings.HasPrefix(event.Name, gmObjectsDir) &&
                 ext == ".gmx" // close enough to ".object.gmx"
@@ -343,9 +351,9 @@ func translateHumanObject (humanObjPath string) {
 
 func translateGMObject (gmObjPath string) {
     objName := strings.Split(filepath.Base(gmObjPath), ".")[0]
-    humanObjPath := filepath.Join(humanDir, objName + ".ogml")
+    humanObjPath := filepath.Join(humanDir, objName + ".gmo")
 
-    err, _ := GMObjectFileToHumanObjectFile(gmObjPath, humanObjPath)
+    err := GMObjectFileToHumanObjectFile(gmObjPath, humanObjPath)
     if err != nil {
         fmt.Printf("[%v] (From GM) %v\n", time.Now().Format("15:04:05"), err)
     } else {

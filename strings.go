@@ -12,16 +12,16 @@ Translation supports:
 3. in both directions (GM <--> NiceObjects)
 
 .gml files are scripts and are simply copied back and forth.
-.ogml files are translated objects. Type "objects" for the .ogml format.
+.gmo files are translated objects. Type "objects" for the .gmo format.
 
-Note that creating new .ogml or .gml files adds them to the project.
+Note that creating new .gmo or .gml files adds them to the project.
 Also note that physics properties are not preserved.
 
 This window will log each translation, as well as translation errors.
 `
 
 const objectsHelpMessage = `
-.ogml files are formatted as follows:
+.gmo files are formatted as follows:
 Property
 Property
 ---Event Name
