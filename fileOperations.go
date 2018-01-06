@@ -55,7 +55,7 @@ func GMObjectFileToHumanObjectFile (objFilename string,
 
     defer f.Close()
     w := bufio.NewWriter(f)
-    err = WriteHumanObject(obj, w)
+    err = WriteHumanObject(obj, w, true)
 
     if err != nil {
         return errors.New(fmt.Sprintf("Error writing human object to %v: %v",

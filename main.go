@@ -23,6 +23,21 @@ gm_txt.exe [project_file]
 If you provide no arguments, it'll open a file picker dialog.
 `
 
+const helpMessage string = `
+Translation supports:
+1. both objects and scripts,
+2. both modifying and creating files,
+3. in both directions (GM <--> NiceObjects)
+
+.gml files are scripts and are simply copied back and forth.
+.gmo files are translated objects. Type "objects" for the .gmo format.
+
+Note that creating new .gmo or .gml files adds them to the project.
+Also note that physics properties are not preserved.
+
+This window will log each translation, as well as translation errors.
+`
+
 func main () {
     InitTranslations()
 
@@ -94,7 +109,7 @@ func main () {
     // Translate all GM objects.
 
     // implements filepath.WalkFunc
-    f := func (path string, info os.FileInfo, err error) error {
+    walkFunc := func (path string, info os.FileInfo, err error) error {
         // Skip directories and extraneous files.
         if info.IsDir() || !strings.HasSuffix(path, ".object.gmx") {
             return nil
@@ -114,7 +129,7 @@ func main () {
         return err
     }
 
-    err = filepath.Walk(gmObjectsDir, f)
+    err = filepath.Walk(gmObjectsDir, walkFunc)
     if err != nil {
         fmt.Printf("Error during initial translation of all GM objects "+
                 "to human objects: %v\n", err)
@@ -124,7 +139,7 @@ func main () {
     // Copy over all GM scripts.
 
     // implements filepath.WalkFunc
-    f = func (path string, info os.FileInfo, err error) error {
+    walkFunc = func (path string, info os.FileInfo, err error) error {
         // Skip directories and extraneous files.
         if info.IsDir() || filepath.Ext(path) != ".gml" {
             return nil
@@ -134,33 +149,74 @@ func main () {
         return cp(destPath, path)
     }
 
-    err = filepath.Walk(gmScriptsDir, f)
+    err = filepath.Walk(gmScriptsDir, walkFunc)
     if err != nil {
         fmt.Printf("Error during initial copying of scripts: %v\n", err)
         return
     }
 
-    // Start monitoring files for changes
+    // Generate cheatsheet.txt
+    
+    obj := blankObject()
+    obj.SpriteName = "sprBread"
+    obj.Visible = 0
+    obj.Solid = 1
+    obj.Persistent = 1
+    obj.Depth = 4
+    obj.ParentName = "objWheat"
+    obj.MaskName = "sprBread"
+
+    e := blankEvent()
+    e.Type = 7
+    e.Number = 11
+    e.Actions[0].Arguments.Arguments[0].String =
+`// If you don't include some of the properties listed above, it'll assume the
+// default values. (no sprite, visible, non-solid, non-persistent, depth 0,
+// no parent, mask same as sprite)
+
+// Below is a list of all event names.
+`
+    obj.Events.Events = append(obj.Events.Events, e)
+
+    for _, code := range eventCodes {
+        name := eventCodeToName[code]
+        e := blankEvent()
+        e.Type = code.Type
+        e.Number = code.Number
+
+        if name == "Alarm" {
+            e.Number = 0
+        } else if name == "Collision" {
+            e.ObjectName = "objBread"
+        } else if name == "User Defined" {
+            e.Number = 10
+        } else if name == "Outside View" {
+            e.Number = 40
+        } else if name == "Boundary View" {
+            e.Number = 50
+        }
+
+        obj.Events.Events = append(obj.Events.Events, e)
+    }
+
+    destPath := filepath.Join(humanDir, "cheatsheet.txt")
+    f, err := os.Create(destPath)
+    if err != nil {
+        fmt.Printf("Error creating file %v: %v", destPath, err)
+    }
+    defer f.Close()
+    w := bufio.NewWriter(f)
+    err = WriteHumanObject(*obj, w, false)
+    if err != nil {
+        fmt.Printf("Error writing cheatsheet.txt: %v", err)
+    }
+    w.Flush()
+
+    // Start monitoring files for changes.
+    // (the watcher must be in a different goroutine)
     go watch()
 
-    // Listen for typed commands on Stdin
-    go func () {
-        scan := bufio.NewScanner(os.Stdin)
-        for scan.Scan() {
-            text := scan.Text()
-            if text == "help" {
-                fmt.Println(helpMessage)
-            } else if text == "objects" {
-                fmt.Println(objectsHelpMessage)
-            } else if text == "events" {
-                fmt.Println(eventsHelpMessage())
-            }
-        }
-    }()
-
     // Surrender this goroutine to the watcher, and wait for control signal
-
-    fmt.Println("Listening (Ctrl-C to quit) (type \"help\" for help)")
 
     <-sigchan
 
@@ -168,7 +224,7 @@ func main () {
 
     err = os.RemoveAll(humanDir)
     if err != nil {
-        fmt.Printf("Error removing gm_txt directory %v: %v\n", humanDir, err)
+        fmt.Printf("Error removing gm_txt directory %v:\n%v\n", humanDir, err)
         return
     }
     fmt.Println("Success")

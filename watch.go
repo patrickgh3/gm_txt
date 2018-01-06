@@ -40,6 +40,8 @@ func watch () {
                 err)
     }
 
+    fmt.Println("Up and running. Read gm_txt/cheatsheet.txt")
+
     for {
         select {
         case event := <-watcher.Events:

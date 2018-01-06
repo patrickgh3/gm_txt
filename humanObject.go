@@ -16,90 +16,94 @@ type EventCode struct {
 
 var eventCodeToName = make(map[EventCode]string)
 var eventNameToCode = make(map[string]EventCode)
+var eventCodes []EventCode
 
 func addEventCodeTranslation(Name string, Type int, Number int) {
-    eventCodeToName[EventCode{Type:Type,Number:Number}] = Name
-    eventNameToCode[Name] = EventCode{Type:Type,Number:Number}
+    c := EventCode{Type:Type,Number:Number}
+    eventCodeToName[c] = Name
+    eventNameToCode[Name] = c
+    eventCodes = append(eventCodes, c)
 }
 
 func InitTranslations () {
-    addEventCodeTranslation("Create", 0, 0)
-    addEventCodeTranslation("Destroy", 1, 0)
-    addEventCodeTranslation("Alarm", 2, 0)
-    addEventCodeTranslation("Step", 3, 0)
-    addEventCodeTranslation("Begin Step", 3, 1)
-    addEventCodeTranslation("End Step", 3, 2)
-    addEventCodeTranslation("Collision", 4, 0)
-    addEventCodeTranslation("Keyboard", 5, 0)
+    f := addEventCodeTranslation
+    f("Create", 0, 0)
+    f("Destroy", 1, 0)
+    f("Alarm", 2, 0)
+    f("Step", 3, 0)
+    f("Begin Step", 3, 1)
+    f("End Step", 3, 2)
+    f("Collision", 4, 0)
+    f("Keyboard", 5, 0)
 
-    addEventCodeTranslation("Mouse Left Button", 6, 0)
-    addEventCodeTranslation("Mouse Right Button", 6, 1)
-    addEventCodeTranslation("Mouse Middle Button", 6, 2)
-    addEventCodeTranslation("Mouse No Button", 6, 3)
-    addEventCodeTranslation("Mouse Left Pressed", 6, 4)
-    addEventCodeTranslation("Mouse Right Pressed", 6, 5)
-    addEventCodeTranslation("Mouse Middle Pressed", 6, 6)
-    addEventCodeTranslation("Mouse Left Released", 6, 7)
-    addEventCodeTranslation("Mouse Right Released", 6, 8)
-    addEventCodeTranslation("Mouse Middle Released", 6, 9)
-    addEventCodeTranslation("Mouse Enter", 6, 10)
-    addEventCodeTranslation("Mouse Leave", 6, 11)
-    addEventCodeTranslation("Mouse Global Left Button", 6, 50)
-    addEventCodeTranslation("Mouse Global Right Button", 6, 51)
-    addEventCodeTranslation("Mouse GLobal Middle Button", 6, 52)
-    addEventCodeTranslation("Mouse Global Left Pressed", 6, 53)
-    addEventCodeTranslation("Mouse Global Right Pressed", 6, 54)
-    addEventCodeTranslation("Mouse Global Middle Pressed", 6, 55)
-    addEventCodeTranslation("Mouse Global Left Released", 6, 56)
-    addEventCodeTranslation("Mouse Global Right Released", 6, 57)
-    addEventCodeTranslation("Mouse Global Middle Released", 6, 58)
-    addEventCodeTranslation("Mouse Wheel Up", 6, 60)
-    addEventCodeTranslation("Mouse Wheel Down", 6, 61)
+    f("Mouse Left Button", 6, 0)
+    f("Mouse Right Button", 6, 1)
+    f("Mouse Middle Button", 6, 2)
+    f("Mouse No Button", 6, 3)
+    f("Mouse Left Pressed", 6, 4)
+    f("Mouse Right Pressed", 6, 5)
+    f("Mouse Middle Pressed", 6, 6)
+    f("Mouse Left Released", 6, 7)
+    f("Mouse Right Released", 6, 8)
+    f("Mouse Middle Released", 6, 9)
+    f("Mouse Enter", 6, 10)
+    f("Mouse Leave", 6, 11)
+    f("Mouse Global Left Button", 6, 50)
+    f("Mouse Global Right Button", 6, 51)
+    f("Mouse Global Middle Button", 6, 52)
+    f("Mouse Global Left Pressed", 6, 53)
+    f("Mouse Global Right Pressed", 6, 54)
+    f("Mouse Global Middle Pressed", 6, 55)
+    f("Mouse Global Left Released", 6, 56)
+    f("Mouse Global Right Released", 6, 57)
+    f("Mouse Global Middle Released", 6, 58)
+    f("Mouse Wheel Up", 6, 60)
+    f("Mouse Wheel Down", 6, 61)
 
-    addEventCodeTranslation("Outside Room", 7, 0)
-    addEventCodeTranslation("Intersect Boundary", 7, 1)
-    addEventCodeTranslation("Game Start", 7, 2)
-    addEventCodeTranslation("Game End", 7, 3)
-    addEventCodeTranslation("Room Start", 7, 4)
-    addEventCodeTranslation("Room End", 7, 5)
-    addEventCodeTranslation("No More Lives", 7, 6)
-    addEventCodeTranslation("Animation End", 7, 7)
-    addEventCodeTranslation("End Of Path", 7, 8)
-    addEventCodeTranslation("No More Health", 7, 9)
-    addEventCodeTranslation("User Defined", 7, 10) // 10-25
+    f("Outside Room", 7, 0)
+    f("Intersect Boundary", 7, 1)
+    f("Game Start", 7, 2)
+    f("Game End", 7, 3)
+    f("Room Start", 7, 4)
+    f("Room End", 7, 5)
+    f("No More Lives", 7, 6)
+    f("Animation End", 7, 7)
+    f("End Of Path", 7, 8)
+    f("No More Health", 7, 9)
+    f("User Defined", 7, 10) // 10-25
 
-    addEventCodeTranslation("Outside View", 7, 40) //40-47
-    addEventCodeTranslation("Boundary View", 7, 50) // 50-57
-    addEventCodeTranslation("Animation Update", 7, 58)
-    addEventCodeTranslation("Image Loaded", 7, 60)
-    addEventCodeTranslation("HTTP", 7, 62)
-    addEventCodeTranslation("Dialog", 7, 63)
-    addEventCodeTranslation("IAP", 7, 66)
-    addEventCodeTranslation("Cloud", 7, 67)
-    addEventCodeTranslation("Networking", 7, 68)
-    addEventCodeTranslation("Steam", 7, 69)
-    addEventCodeTranslation("Social", 7, 70)
-    addEventCodeTranslation("Push Notification", 7, 71)
-    addEventCodeTranslation("Save / Load", 7, 72)
-    addEventCodeTranslation("Audio Recording", 7, 73)
-    addEventCodeTranslation("Audio Playback", 7, 74)
-    addEventCodeTranslation("System Event", 7, 75)
+    f("Outside View", 7, 40) //40-47
+    f("Boundary View", 7, 50) // 50-57
+    f("Animation Update", 7, 58)
+    f("Image Loaded", 7, 60)
+    f("HTTP", 7, 62)
+    f("Dialog", 7, 63)
+    f("IAP", 7, 66)
+    f("Cloud", 7, 67)
+    f("Networking", 7, 68)
+    f("Steam", 7, 69)
+    f("Social", 7, 70)
+    f("Push Notification", 7, 71)
+    f("Save / Load", 7, 72)
+    f("Audio Recording", 7, 73)
+    f("Audio Playback", 7, 74)
+    f("System Event", 7, 75)
 
-    addEventCodeTranslation("Draw", 8, 0)
-    addEventCodeTranslation("Draw GUI", 8, 64)
-    addEventCodeTranslation("Resize", 8, 65)
-    addEventCodeTranslation("Draw Begin", 8, 72)
-    addEventCodeTranslation("Draw End", 8, 73)
-    addEventCodeTranslation("Draw GUI Begin", 8, 74)
-    addEventCodeTranslation("Draw GUI End", 8, 75)
-    addEventCodeTranslation("Pre Draw", 8, 76)
-    addEventCodeTranslation("Post Draw", 8, 77)
+    f("Draw", 8, 0)
+    f("Draw GUI", 8, 64)
+    f("Resize", 8, 65)
+    f("Draw Begin", 8, 72)
+    f("Draw End", 8, 73)
+    f("Draw GUI Begin", 8, 74)
+    f("Draw GUI End", 8, 75)
+    f("Pre Draw", 8, 76)
+    f("Post Draw", 8, 77)
 
-    addEventCodeTranslation("Key Press", 9, 0)
-    addEventCodeTranslation("Key Release", 10, 0)
+    f("Key Press", 9, 0)
+    f("Key Release", 10, 0)
 }
 
-func WriteHumanObject (obj GMObject, w io.Writer) error {
+func WriteHumanObject (obj GMObject, w io.Writer, spaceEvents bool) error {
     // Properties
 
     if obj.SpriteName != gmUndefinedStr {
@@ -165,7 +169,10 @@ func WriteHumanObject (obj GMObject, w io.Writer) error {
         for _, action := range event.Actions {
             fmt.Fprintf(w, "%v", action.Arguments.Arguments[0].String)
         }
-        fmt.Fprintf(w, "\n")
+
+        if spaceEvents {
+            fmt.Fprintf(w, "\n\n")
+        }
     }
 
     return nil
