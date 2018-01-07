@@ -25,7 +25,7 @@ var lastHumanFileChanged string
 func watch () {
     watcher, err := fsnotify.NewWatcher()
     if err != nil {
-        panic("Error creating watcher: %v\n", err)
+        panic(fmt.Sprintf("Error creating watcher: %v\n", err))
     }
     defer watcher.Close()
 
@@ -93,7 +93,7 @@ func handleFileWritten (path string) {
             err := GMObjectFileToHumanObjectFile(path, destPath)
             if err != nil {
                 fmt.Printf("[%v] (From GM) %v\n",
-                        time.Now().Format(timeFormat), objName, err)
+                        time.Now().Format(timeFormat), resourceName, err)
             } else {
                 fmt.Printf("[%v] (From GM) Translated %v\n",
                         time.Now().Format(timeFormat), resourceName)

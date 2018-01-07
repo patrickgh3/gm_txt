@@ -97,6 +97,10 @@ func (w MyWriter) Write(data []byte) (n int, err error) {
 }
 
 func WriteGMObject (obj GMObject, w io.Writer) error {
+    // Add newlines to the end of all code actions
+    // (to be consistent with GameMaker)
+    // TODO
+
     // Encode XML using the special newline replacement.
     m := MyWriter{InnerWriter:w}
     encoder := xml.NewEncoder(m)

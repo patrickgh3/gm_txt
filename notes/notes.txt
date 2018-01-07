@@ -6,6 +6,8 @@ Handle objects or scripts folder not created? Same with GM project file?
 Physics shape points
 Parser should detect if multiple of same event type
 Tests!
+go fmt
+fmt.Errorf
 
 
 

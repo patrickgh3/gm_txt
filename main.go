@@ -8,8 +8,9 @@ import (
     "os/signal"
     "bufio"
     "path/filepath"
-    "strings"
     "syscall"
+    "strings"
+    "errors"
 )
 
 var projectPath  string
@@ -106,53 +107,67 @@ func main () {
         return
     }
 
+    // Read GM project file.
+
+    f, err := os.Open(projectPath)
+    if err != nil {
+        fmt.Printf("Error opening file %v: %v", projectPath, err)
+        return
+    }
+    defer f.Close()
+
+    proj := GMProject{}
+    err = ReadGMProject(f, &proj)
+    if err != nil {
+        fmt.Printf("Error reading project file %v: %v", projectPath, err)
+        return
+    }
+
     // Translate all GM objects.
 
-    // implements filepath.WalkFunc
-    walkFunc := func (path string, info os.FileInfo, err error) error {
-        // Skip directories and extraneous files.
-        if info.IsDir() || !strings.HasSuffix(path, ".object.gmx") {
-            return nil
-        }
+    err = WalkNode (proj.ObjectsRoot, func(subpath string) error {
 
-        // Compute translated file path.
-        resourceName := strings.TrimSuffix(filepath.Base(path), ".object.gmx")
+        // Compute paths.
+        resourceName := strings.TrimPrefix(subpath, "objects\\")
+        path := filepath.Join(projectDir, subpath)+".object.gmx"
         destPath := filepath.Join(humanDir, resourceName+".gmo")
 
         // Translate.
-        err = GMObjectFileToHumanObjectFile(path, destPath)
+        err := GMObjectFileToHumanObjectFile(path, destPath)
         if err != nil {
-            fmt.Printf("Error initially translating %v: %v\n",
-                    resourceName, err)
-            return err
+            return errors.New(fmt.Sprintf("Error translating %v: %v\n",
+                    resourceName, err))
         }
 
         return nil
-    }
-
-    err = filepath.Walk(gmObjectsDir, walkFunc)
+    })
     if err != nil {
-        fmt.Printf("Error during initial translation of all GM objects "+
-                "to human objects: %v\n", err)
+        fmt.Printf("Error during initial translation: %v\n", err)
         return
     }
 
     // Copy over all GM scripts.
 
-    // implements filepath.WalkFunc
-    walkFunc = func (path string, info os.FileInfo, err error) error {
-        // Skip directories and extraneous files.
-        if info.IsDir() || filepath.Ext(path) != ".gml" {
-            return nil
+    err = WalkNode (proj.ScriptsRoot, func(subpath string) error {
+
+        // Compute paths.
+        path := filepath.Join(projectDir, subpath)
+        resourceName := strings.TrimSuffix(
+                strings.TrimPrefix(subpath, "scripts\\"),
+                ".gml")
+        destPath := filepath.Join(humanDir, resourceName+".gml")
+
+        // Translate.
+        err := cp(destPath, path)
+        if err != nil {
+            return errors.New(fmt.Sprintf("Error copying %v: %v\n",
+                    resourceName, err))
         }
 
-        destPath := filepath.Join(humanDir, filepath.Base(path))
-        return cp(destPath, path)
-    }
-
-    err = filepath.Walk(gmScriptsDir, walkFunc)
+        return nil
+    })
     if err != nil {
-        fmt.Printf("Error during initial copying of scripts: %v\n", err)
+        fmt.Printf("Error during initial translation: %v\n", err)
         return
     }
 
@@ -201,7 +216,7 @@ func main () {
     }
 
     destPath := filepath.Join(humanDir, "cheatsheet.txt")
-    f, err := os.Create(destPath)
+    f, err = os.Create(destPath)
     if err != nil {
         fmt.Printf("Error creating file %v: %v", destPath, err)
     }
