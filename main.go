@@ -6,7 +6,6 @@ import (
     "fmt"
     "os"
     "os/signal"
-    "bufio"
     "path/filepath"
     "syscall"
     "strings"
@@ -215,18 +214,21 @@ func main () {
         obj.Events.Events = append(obj.Events.Events, e)
     }
 
+    // Write cheatsheet.txt
+
     destPath := filepath.Join(humanDir, "cheatsheet.txt")
     f, err = os.Create(destPath)
     if err != nil {
         fmt.Printf("Error creating file %v: %v", destPath, err)
     }
     defer f.Close()
-    w := bufio.NewWriter(f)
-    err = WriteHumanObject(*obj, w, false)
+
+    err = WriteHumanObject(*obj, f, false)
     if err != nil {
         fmt.Printf("Error writing cheatsheet.txt: %v", err)
     }
-    w.Flush()
+
+    f.Close()
 
     // Start monitoring files for changes.
     // (the watcher must be in a different goroutine)
@@ -243,5 +245,6 @@ func main () {
         fmt.Printf("Error removing gm_txt directory %v:\n%v\n", humanDir, err)
         return
     }
-    fmt.Println("Success")
+
+    fmt.Println("Removed gm_txt directory")
 }

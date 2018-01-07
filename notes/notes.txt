@@ -8,6 +8,8 @@ Parser should detect if multiple of same event type
 Tests!
 go fmt
 fmt.Errorf
+GMS2 support
+When prorotyping hop game, use this tool, and report bugs.
 
 
 

@@ -39,6 +39,7 @@ func watch () {
         fmt.Printf("Error adding dir to watcher: %v\n", err)
     }
 
+    fmt.Println(humanDir)
     fmt.Println("Up and running. Read gm_txt/cheatsheet.txt")
 
     // Watch forever.
@@ -53,6 +54,18 @@ func watch () {
             fmt.Printf("Fsnotify watcher error: %v\n", err)
         }
     }
+}
+
+func humanFileTimingOk (humanFile string) bool {
+    return time.Since(gmChanged) > reverbSpacing &&
+            (lastHumanFileChanged != humanFile ||
+            time.Since(humanChanged) > dedupSpacing)
+}
+
+func gmFileTimingOk (gmFile string) bool {
+    return time.Since(humanChanged) > reverbSpacing &&
+            (lastGMFileChanged != gmFile ||
+            time.Since(gmChanged) > dedupSpacing)
 }
 
 func handleFileWritten (path string) {
@@ -120,18 +133,6 @@ func handleFileWritten (path string) {
             }
         }
     }
-}
-
-func humanFileTimingOk (humanFile string) bool {
-    return time.Since(gmChanged) > reverbSpacing &&
-            (lastHumanFileChanged != humanFile ||
-            time.Since(humanChanged) > dedupSpacing)
-}
-
-func gmFileTimingOk (gmFile string) bool {
-    return time.Since(humanChanged) > reverbSpacing &&
-            (lastGMFileChanged != gmFile ||
-            time.Since(gmChanged) > dedupSpacing)
 }
 
 func copyHumanScript (humanScriptPath string) {
