@@ -3,134 +3,95 @@ package main
 import (
     "fmt"
     "os"
-    "bufio"
     "io"
     "io/ioutil"
     "errors"
     "strings"
     "time"
-    "encoding/xml"
-    "bytes"
 )
 
-func GMObjectFileToHumanObjectFile (objFilename string,
-        humanFilename string) error {
+func GMObjectFileToHumanObjectFile (path string, destPath string) error {
     // Read GM object file
 
-    f, err := os.Open(objFilename)
-
+    f, err := os.Open(path)
     if err != nil {
         return errors.New(fmt.Sprintf("Error opening file %v: %v",
-                objFilename, err))
+                path, err))
     }
-
     defer f.Close()
-    decoder := xml.NewDecoder(f)
+
     var obj GMObject = *blankObject()
-    err = decoder.Decode(&obj)
-
+    err = ReadGMObject(f, &obj)
     if err != nil {
-        return errors.New(fmt.Sprintf("Error decoding XML from %v: %v",
-                objFilename, err))
-    }
-
-    // Error if object contains any drag&drop actions
-
-    for _, event := range obj.Events.Events {
-        for _, action := range event.Actions {
-            if action.ExeType != 2 {
-                return errors.New("Drag&drop in an event")
-            }
-        }
+        return errors.New(fmt.Sprintf("Error reading GM object file %v: %v",
+                path, err))
     }
 
     // Write human object file
 
-    f, err = os.Create(humanFilename)
-
+    f, err = os.Create(destPath)
     if err != nil {
         return errors.New(fmt.Sprintf("Error creating file %v: %v",
-                humanFilename, err))
+                destPath, err))
     }
-
     defer f.Close()
-    w := bufio.NewWriter(f)
-    err = WriteHumanObject(obj, w, true)
 
+    err = WriteHumanObject(obj, f, true)
     if err != nil {
         return errors.New(fmt.Sprintf("Error writing human object to %v: %v",
-                humanFilename, err))
+                destPath, err))
     }
 
-    w.Flush()
     return nil
 }
 
-func HumanObjectFileToGMObjectFile (humanFilename string,
-        objFilename string) error {
+func HumanObjectFileToGMObjectFile (path string,
+        destPath string) error {
     // TODO: if gm object exists, load only physics properties from it
 
     // Read human object file
 
-    f, err := os.Open(humanFilename)
+    f, err := os.Open(path)
     if err != nil {
         return errors.New(fmt.Sprintf("Error opening file %v: %v",
-                humanFilename, err))
+                path, err))
     }
     defer f.Close()
 
-    r := bufio.NewReader(f)
     var obj GMObject = *blankObject()
-    err = ReadHumanObject(r, &obj)
+    err = ReadHumanObject(f, &obj)
     if err != nil {
         return errors.New(fmt.Sprintf("Error reading human object file %v: %v",
-                humanFilename, err))
+                path, err))
     }
 
     // Write GM object file
 
-    f, err = os.Create(objFilename)
+    f, err = os.Create(destPath)
     if err != nil {
         return errors.New(fmt.Sprintf("Error opening file %v: %v",
-                objFilename, err))
+                destPath, err))
     }
     defer f.Close()
 
-    w := MyWriter{File:f}
-    encoder := xml.NewEncoder(w)
-    encoder.Indent("", "  ")
-    err = encoder.Encode(obj)
+    err = WriteGMObject(obj, f)
     if err != nil {
         return errors.New(fmt.Sprintf("Error writing XML to %v: %v",
-                objFilename, err))
+                destPath, err))
     }
 
     if len(obj.PhysicsShapePoints) == 0 {
-        err = AddEmptyPhysicsShapePoints(objFilename)
+        err = AddEmptyPhysicsShapePoints(destPath)
         if err != nil {
             return errors.New(fmt.Sprintf(
                     "Error writing extra PhysicsShapePoints line to %v: %v",
-                    objFilename, err))
+                    destPath, err))
         }
     }
 
     return nil
 }
 
-// MyWriter un-escapes XML newlines and converts to windows-style newlines.
-// Implements io.PipeWriter
-type MyWriter struct {
-    File *os.File
-}
-func (w MyWriter) Close() error { return w.File.Close() }
-func (w MyWriter) CloseWithError(err error) error { return nil }
-func (w MyWriter) Write(data []byte) (n int, err error) {
-    n = len(data)
-    data = bytes.Replace(data, []byte("&#xA;"), []byte("\n"), -1)
-    data = bytes.Replace(data, []byte("\n"), []byte("\r\n"), -1)
-    _, err = w.File.Write(data)
-    return
-}
 
 // https://gist.github.com/elazarl/5507969
 func cp(dst, src string) error {

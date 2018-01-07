@@ -2,6 +2,9 @@ package main
 
 import (
     "encoding/xml"
+    "bytes"
+    "io"
+    "errors"
 )
 
 const gmUndefinedStr string = "<undefined>"
@@ -70,4 +73,53 @@ type Arguments struct {
 type Argument struct {
     Kind int`xml:"kind"`
     String string`xml:"string"`
+}
+
+// MyWriter un-escapes XML newlines and converts to windows-style newlines.
+// Implements io.Writer
+type MyWriter struct {
+    InnerWriter io.Writer
+}
+func (w MyWriter) Write(data []byte) (n int, err error) {
+    // Return the provied # of bytes, even though we may not write
+    // that exact amount, otherwise things complain.
+    // This may be sketchy!!! But it seems to work fine.
+    n = len(data)
+
+    // Convert newlines before writing.
+    data = bytes.Replace(data, []byte("&#xA;"), []byte("\n"), -1)
+    data = bytes.Replace(data, []byte("\n"), []byte("\r\n"), -1)
+
+    // Discard the # of bytes *actually* written.
+    _, err = w.InnerWriter.Write(data)
+
+    return
+}
+
+func WriteGMObject (obj GMObject, w io.Writer) error {
+    // Encode XML using the special newline replacement.
+    m := MyWriter{InnerWriter:w}
+    encoder := xml.NewEncoder(m)
+    encoder.Indent("", "  ")
+    return encoder.Encode(obj)
+}
+
+func ReadGMObject (r io.Reader, obj *GMObject) error {
+    // Decode the XML.
+    decoder := xml.NewDecoder(r)
+    err := decoder.Decode(&obj)
+    if err != nil {
+        return err
+    }
+
+    // Error if object contains any drag&drop actions.
+    for _, event := range obj.Events.Events {
+        for _, action := range event.Actions {
+            if action.ExeType != 2 {
+                return errors.New("Drag&drop in an event")
+            }
+        }
+    }
+
+    return nil
 }

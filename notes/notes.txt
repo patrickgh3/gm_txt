@@ -3,6 +3,7 @@ Features Todo
 Add note to auto reload files in GM in help or startup message
 Handle objects or scripts folder not created? Same with GM project file?
     ^ maybe detect and quit
+Physics shape points
 Parser should detect if multiple of same event type
 Tests!
 
