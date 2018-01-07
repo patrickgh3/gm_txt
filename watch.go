@@ -10,6 +10,8 @@ import (
     "path/filepath"
 )
 
+const timeFormat = "15:04:05"
+
 // "Reverb" refers to translations causing file Write events back and forth
 // between the GM and human folders.
 
@@ -23,69 +25,98 @@ var lastHumanFileChanged string
 func watch () {
     watcher, err := fsnotify.NewWatcher()
     if err != nil {
-        fmt.Printf("Error creating fsnotify watcher: %v\n", err)
-        return
+        panic("Error creating watcher: %v\n", err)
     }
     defer watcher.Close()
 
     if err := watcher.Add(humanDir); err != nil {
-        fmt.Printf("Error assigning human dir to fsnotify watcher: %v\n", err)
+        fmt.Printf("Error adding dir to watcher: %v\n", err)
     }
     if err := watcher.Add(gmObjectsDir); err != nil {
-        fmt.Printf("Error assigning GM objects dir to fsnotify watcher: %v\n",
-                err)
+        fmt.Printf("Error adding dir to watcher: %v\n", err)
     }
     if err := watcher.Add(gmScriptsDir); err != nil {
-        fmt.Printf("Error assigning GM scripts dir to fsnotify watcher: %v\n",
-                err)
+        fmt.Printf("Error adding dir to watcher: %v\n", err)
     }
 
     fmt.Println("Up and running. Read gm_txt/cheatsheet.txt")
 
+    // Watch forever.
+
     for {
         select {
         case event := <-watcher.Events:
-            handleEvent(event)
+            if event.Op == fsnotify.Write {
+                handleFileWritten(event.Name)
+            }
         case err := <-watcher.Errors:
             fmt.Printf("Fsnotify watcher error: %v\n", err)
         }
     }
 }
 
-func handleEvent (event fsnotify.Event) {
-    if event.Op == fsnotify.Write {
-        ext := filepath.Ext(event.Name)
-        isHuman := strings.HasPrefix(event.Name, humanDir)
-        isHumanObj := isHuman && ext == ".gmo"
-        isHumanScript := isHuman && ext == ".gml"
-        isGMObj := strings.HasPrefix(event.Name, gmObjectsDir) &&
-                ext == ".gmx" // close enough to ".object.gmx"
-        isGMScript := strings.HasPrefix(event.Name, gmScriptsDir) &&
-                ext == ".gml"
+func handleFileWritten (path string) {
+    ext := filepath.Ext(path)
+    inHumanDir := strings.HasPrefix(path, humanDir)
 
-        if isHumanObj {
-            if humanFileTimingOk(event.Name) {
-                humanChanged = time.Now()
-                lastHumanFileChanged = event.Name
-                translateHumanObject(event.Name)
+    // Human folder object file written
+    if inHumanDir && ext == ".gmo" {
+        if humanFileTimingOk(path) {
+            humanChanged = time.Now()
+            lastHumanFileChanged = path
+
+            translateHumanObject(path)
+        }
+    // Human folder script file written
+    } else if inHumanDir && ext == ".gml" {
+        if humanFileTimingOk(path) {
+            humanChanged = time.Now()
+            lastHumanFileChanged = path
+
+            copyHumanScript(path)
+        }
+
+    // GameMaker object file written
+
+    } else if strings.HasPrefix(path, gmObjectsDir) &&
+            strings.HasSuffix(path, ".object.gmx") {
+        if gmFileTimingOk(path) {
+            gmChanged = time.Now()
+            lastGMFileChanged = path
+
+            // Compute translated file path.
+            resourceName := strings.TrimSuffix(filepath.Base(path),
+                    ".object.gmx")
+            destPath := filepath.Join(humanDir, resourceName+".gmo")
+
+            // Translate.
+            err := GMObjectFileToHumanObjectFile(path, destPath)
+            if err != nil {
+                fmt.Printf("[%v] (From GM) %v\n",
+                        time.Now().Format(timeFormat), objName, err)
+            } else {
+                fmt.Printf("[%v] (From GM) Translated %v\n",
+                        time.Now().Format(timeFormat), resourceName)
             }
-        } else if isHumanScript {
-            if humanFileTimingOk(event.Name) {
-                humanChanged = time.Now()
-                lastHumanFileChanged = event.Name
-                copyHumanScript(event.Name)
-            }
-        } else if isGMObj {
-            if gmFileTimingOk(event.Name) {
-                gmChanged = time.Now()
-                lastGMFileChanged = event.Name
-                translateGMObject(event.Name)
-            }
-        } else if isGMScript {
-            if gmFileTimingOk(event.Name) {
-                gmChanged = time.Now()
-                lastGMFileChanged = event.Name
-                copyGMScript(event.Name)
+        }
+
+    // GameMaker script file written
+
+    } else if strings.HasPrefix(path, gmScriptsDir) && ext == ".gml" {
+        if gmFileTimingOk(path) {
+            gmChanged = time.Now()
+            lastGMFileChanged = path
+
+            resourceName := strings.TrimSuffix(filepath.Base(path), ".gml")
+            destPath := filepath.Join(humanDir, resourceName+".gml")
+
+            err := cp(destPath, path)
+            if err != nil {
+                fmt.Printf("[%v] (From GM) %v\n",
+                        time.Now().Format(timeFormat), err)
+            } else {
+                fmt.Printf("[%v] (From GM) Copied %v\n",
+                        time.Now().Format(timeFormat), resourceName)
             }
         }
     }
@@ -118,10 +149,10 @@ func copyHumanScript (humanScriptPath string) {
 
     err = cp(gmScriptPath, humanScriptPath)
     if err != nil {
-        fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
+        fmt.Printf("[%v] %v\n", time.Now().Format(timeFormat), err)
     } else {
         fmt.Printf("[%v] Copied %v\n",
-                time.Now().Format("15:04:05"), scriptName)
+                time.Now().Format(timeFormat), scriptName)
     }
 
     // If necessary, add to project file
@@ -129,27 +160,13 @@ func copyHumanScript (humanScriptPath string) {
     if !gmFileExisted {
         err = AppendResourceToGMProject(fn, "script", "scripts")
         if err != nil {
-            fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
+            fmt.Printf("[%v] %v\n", time.Now().Format(timeFormat), err)
         } else {
             fmt.Printf("[%v] Project file updated %v\n",
-                    time.Now().Format("15:04:05"), scriptName)
+                    time.Now().Format(timeFormat), scriptName)
         }
     }
 }
-
-func copyGMScript (gmScriptPath string) {
-    fn := filepath.Base(gmScriptPath)
-    humanScriptPath := filepath.Join(humanDir, fn)
-    err := cp(humanScriptPath, gmScriptPath)
-    if err != nil {
-        fmt.Printf("[%v] (From GM) %v\n", time.Now().Format("15:04:05"), err)
-    } else {
-        scriptName := strings.Split(fn, ".")[0]
-        fmt.Printf("[%v] (From GM) Copied %v\n",
-                time.Now().Format("15:04:05"), scriptName)
-    }
-}
-
 
 func translateHumanObject (humanObjPath string) {
     objName := strings.Split(filepath.Base(humanObjPath), ".")[0]
@@ -165,9 +182,9 @@ func translateHumanObject (humanObjPath string) {
 
     err = HumanObjectFileToGMObjectFile(humanObjPath, gmObjPath)
     if err != nil {
-        fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
+        fmt.Printf("[%v] %v\n", time.Now().Format(timeFormat), err)
     } else {
-        fmt.Printf("[%v] Translated %v\n", time.Now().Format("15:04:05"),
+        fmt.Printf("[%v] Translated %v\n", time.Now().Format(timeFormat),
                 objName)
         // Touching the project file causes GM:Studio to close all
         // folders, which is annoying.
@@ -179,23 +196,10 @@ func translateHumanObject (humanObjPath string) {
     if !gmObjFileExisted {
         err = AppendResourceToGMProject(objName, "object", "objects")
         if err != nil {
-            fmt.Printf("[%v] %v\n", time.Now().Format("15:04:05"), err)
+            fmt.Printf("[%v] %v\n", time.Now().Format(timeFormat), err)
         } else {
             fmt.Printf("[%v] Project file updated %v\n",
-                    time.Now().Format("15:04:05"), objName)
+                    time.Now().Format(timeFormat), objName)
         }
-    }
-}
-
-func translateGMObject (gmObjPath string) {
-    objName := strings.Split(filepath.Base(gmObjPath), ".")[0]
-    humanObjPath := filepath.Join(humanDir, objName + ".gmo")
-
-    err := GMObjectFileToHumanObjectFile(gmObjPath, humanObjPath)
-    if err != nil {
-        fmt.Printf("[%v] (From GM) %v\n", time.Now().Format("15:04:05"), err)
-    } else {
-        fmt.Printf("[%v] (From GM) Translated %v\n",
-                time.Now().Format("15:04:05"), objName)
     }
 }

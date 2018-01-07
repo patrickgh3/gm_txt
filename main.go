@@ -126,7 +126,8 @@ func main () {
                     resourceName, err)
             return err
         }
-        return err
+
+        return nil
     }
 
     err = filepath.Walk(gmObjectsDir, walkFunc)

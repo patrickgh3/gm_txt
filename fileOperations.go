@@ -69,7 +69,7 @@ func HumanObjectFileToGMObjectFile (path string,
 
     f, err = os.Create(destPath)
     if err != nil {
-        return errors.New(fmt.Sprintf("Error opening file %v: %v",
+        return errors.New(fmt.Sprintf("Error creating file %v: %v",
                 destPath, err))
     }
     defer f.Close()
