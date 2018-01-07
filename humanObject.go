@@ -132,25 +132,38 @@ func WriteHumanObject (obj GMObject, w io.Writer, spaceEvents bool) error {
 
     // Events
 
-    for _, event := range obj.Events.Events {
-        ec := EventCode{Type:event.Type,Number:event.Number}
-        if ec.Type == 2 {
-            ec.Number = 0
-        } else if (ec.Type == 7 && ec.Number >= 10 && ec.Number <= 25) {
-            ec.Number = 10
-        } else if (ec.Type == 7 && ec.Number >= 40 && ec.Number <= 47) {
-            ec.Number = 40
-        } else if (ec.Type == 7 && ec.Number >= 50 && ec.Number <= 57) {
-            ec.Number = 50
-        } else if (ec.Type == 5 || ec.Type == 9 || ec.Type == 10) {
-            ec.Number = 0
+    for i, event := range obj.Events.Events {
+        // Two newlines between events.
+        if i != 0 && spaceEvents {
+            fmt.Fprintf(w, "\n")
         }
-        name, ok := eventCodeToName[ec]
+
+        // Consolidate the event code, e.g. User Defined 0-11 becomes
+        // User Defined 0, before looking it up in the map.
+        cc := EventCode{Type:event.Type, Number:event.Number}
+
+        // Alarm, Keyboard, Key Press, Key Release
+        if cc.Type == 2 || cc.Type == 5 || cc.Type == 9 || cc.Type == 10 {
+            cc.Number = 0
+        // User Defined
+        } else if (cc.Type == 7 && cc.Number >= 10 && cc.Number <= 25) {
+            cc.Number = 10
+        // Outside View
+        } else if (cc.Type == 7 && cc.Number >= 40 && cc.Number <= 47) {
+            cc.Number = 40
+        // Boundary View
+        } else if (cc.Type == 7 && cc.Number >= 50 && cc.Number <= 57) {
+            cc.Number = 50
+        }
+
+        // Get the event name from the consolidated event code.
+        name, ok := eventCodeToName[cc]
         if !ok {
             return errors.New(fmt.Sprintf("Unrecognized event code: (%v,%v)",
                     event.Type, event.Number))
         }
 
+        // Write event name.
         if name == "Collision" {
             fmt.Fprintf(w, "---%v %v\n", name, event.ObjectName)
         } else if name == "Alarm" || name == "Keyboard" ||
@@ -166,12 +179,14 @@ func WriteHumanObject (obj GMObject, w io.Writer, spaceEvents bool) error {
             fmt.Fprintf(w, "---%v\n", name)
         }
 
-        for _, action := range event.Actions {
+        // Write the event's GML code.
+        // If there are multiple actions ("Execute a piece of code" in GM),
+        // write them all sequentially.
+        for j, action := range event.Actions {
+            if j != 0 {
+                fmt.Fprintf(w, "\n")
+            }
             fmt.Fprintf(w, "%v", action.Arguments.Arguments[0].String)
-        }
-
-        if spaceEvents {
-            fmt.Fprintf(w, "\n\n")
         }
     }
 
@@ -193,20 +208,142 @@ func blankEvent() *Event {
     return &Event{Actions:actions}
 }
 
-func parseIntArg(tokens []string, evName string, lineNum int,
-        intPos int, min int, max int) (int, error) {
-    if len(tokens) < intPos+1 {
-        return 0, errors.New(fmt.Sprintf(
-                "%v event needs number on line %v",
-                evName, lineNum))
+func parseIntParam (param string, boundsCheck bool, min int, max int) (int, error) {
+    if param == "" {
+        return 0, errors.New("No number parameter provided")
     }
-    i, err := strconv.Atoi(tokens[intPos])
-    if err != nil || i<min || i>max {
-        return 0, errors.New(fmt.Sprintf(
-                "%v event has invalid number on line %v",
-                evName, lineNum))
+    i, err := strconv.Atoi(param)
+    if err != nil {
+        return 0, errors.New("Not a valid number")
+    }
+    if boundsCheck && (i<min || i>max) {
+        return 0, errors.New("Number out of range")
     }
     return i, nil
+}
+
+func blankEventFromLine (line string) (*Event, error) {
+    // Trim prefix and excess spaces
+    name := strings.Trim(line[3:], " ")
+
+    // Split name by spaces
+    tokens := strings.Split(name, " ")
+
+    // Get the event's code, assuming there's no parameter.
+    // (the whole line is treated as the name)
+    code, ok := eventNameToCode[name]
+    param := ""
+
+    // If that didn't work, try accounting for a trailing parameter.
+    // (the trailing param isn't included in the name)
+    if !ok {
+        if len(tokens) >= 2 {
+            param = tokens[len(tokens)-1]
+            name = strings.Join(tokens[:len(tokens)-1], " ")
+
+            code, ok = eventNameToCode[name]
+        }
+
+        // If that's still not a match, then the name must be invalid.
+        if !ok {
+            return nil, errors.New("Unrecognized event title")
+        }
+    }
+
+    // Create the event
+    e := blankEvent()
+    e.Type   = code.Type
+    e.Number = code.Number
+
+    // Parse event parameter, if there is one
+    if name == "Collision" {
+        if param == "" {
+            return nil, errors.New("Missing string parameter")
+        }
+        e.ObjectName = param
+    } else if name == "Alarm" {
+        i, err := parseIntParam(param, true, 0, 11)
+        if err != nil {
+            return nil, err
+        }
+        e.Number = i
+    } else if name == "Keyboard" || name == "Key Press" ||
+            name == "Key Release" {
+        i, err := parseIntParam(param, true, 0, 1000)
+        if err != nil {
+            return nil, err
+        }
+        e.Number = i
+    } else if name == "User Defined" {
+        i, err := parseIntParam(param, true, 0, 15)
+        if err != nil {
+            return nil, err
+        }
+        e.Number = i + 10
+    } else if name == "Outside View" {
+        i, err := parseIntParam(param, true, 0, 7)
+        if err != nil {
+            return nil, err
+        }
+        e.Number = i + 40
+    } else if name == "Boundary View" {
+        i, err := parseIntParam(param, true, 0, 7)
+        if err != nil {
+            return nil, err
+        }
+        e.Number = i + 50
+    }
+
+    return e, nil
+}
+
+func applyPropertyLine (line string, obj *GMObject) error {
+    // Split line by spaces.
+    tokens := strings.Split(strings.Trim(line, " "), " ")
+
+    // Grab trailing parameter.
+    param := ""
+    if len(tokens) >= 2 {
+        param = tokens[len(tokens)-1]
+    }
+
+    // Apply the property.
+    if tokens[0] == "Invisible" {
+        obj.Visible = 0
+    } else if tokens[0] == "Solid" {
+        obj.Solid = -1
+    } else if tokens[0] == "Persistent" {
+        obj.Persistent = -1
+
+    } else if tokens[0] == "Sprite" {
+        if param == "" {
+            return errors.New("Missing string parameter")
+        }
+        obj.SpriteName = param
+    } else if tokens[0] == "Parent" {
+        if param == "" {
+            return errors.New("Missing string parameter")
+        }
+        obj.ParentName = param
+    } else if tokens[0] == "Mask" {
+        if param == "" {
+            return errors.New("Missing string parameter")
+        }
+        obj.MaskName = param
+
+    } else if tokens[0] == "Depth" {
+        i, err := parseIntParam(param, false, 0, 0)
+        if err != nil {
+            return err
+        }
+        obj.Depth = i
+
+    } else {
+        return errors.New(fmt.Sprintf("Unrecognized property %v",
+                tokens[0]))
+    }
+
+    return nil
 }
 
 func ReadHumanObject (r io.Reader, obj *GMObject) error {
@@ -214,173 +351,42 @@ func ReadHumanObject (r io.Reader, obj *GMObject) error {
     obj.Events.Events = make([]*Event, 0)
 
     // Scan file line by line
-
     scanner := bufio.NewScanner(r)
     lineNum := 0
     var curEvent *Event
 
     for scanner.Scan() {
-        lineNum++
         line := scanner.Text()
+        lineNum++
 
         // Event title lines
-
         if len(line) >= 3 && line[0:3] == "---" {
-            eventTitle := strings.Trim(line[3:], " ")
-            if len(eventTitle) == 0 {
-                return errors.New(fmt.Sprintf("Empty event title on line %v",
-                        lineNum))
+            var err error
+            curEvent, err = blankEventFromLine(line)
+            if err != nil {
+                return errors.New(fmt.Sprintf("Line %v: %v", lineNum, err))
             }
-            tokens := strings.Split(eventTitle, " ")
-
-            // Try entire title as name
-
-            eventName := eventTitle
-            code, ok := eventNameToCode[eventName]
-            if !ok {
-                // Try first token as name
-
-                eventName = tokens[0]
-                code, ok = eventNameToCode[eventName]
-
-                if !ok {
-                    // Try first two tokens as name
-
-                    if len(tokens) >= 2 {
-                        eventName = tokens[0] + " " + tokens[1]
-                    }
-                    code, ok = eventNameToCode[eventName]
-
-                    if !ok {
-                        return errors.New(fmt.Sprintf(
-                                "Unrecognized event title %v on line %v",
-                                eventName, lineNum))
-                    }
-                }
-            }
-
-
-            // Create the event
-
-            curEvent = blankEvent()
             obj.Events.Events = append(obj.Events.Events, curEvent)
 
-            curEvent.Type = code.Type
-            curEvent.Number = code.Number
-            if eventName == "Collision" {
-                if len(tokens) < 2 {
-                    return errors.New(fmt.Sprintf(
-                            "Collision event needs object name on line %v",
-                            lineNum))
-                } else {
-                    curEvent.ObjectName = tokens[1]
-                }
-            } else if eventName == "Alarm" {
-                i, err := parseIntArg(
-                        tokens, eventName, lineNum, 1, 0, 11)
+        // Property lines
+        } else if curEvent == nil {
+            if line != "" {
+                err := applyPropertyLine(line, obj)
                 if err != nil {
-                    return err
+                    return errors.New(fmt.Sprintf("Line %v: %v", lineNum, err))
                 }
-                curEvent.Number = i
-            } else if eventName == "Keyboard" || eventName == "Key Press" ||
-                    eventName == "Key Release" {
-                i, err := parseIntArg(
-                        tokens, eventName, lineNum,
-                        len(strings.Split(eventName, " ")), 0, 1000)
-                if err != nil {
-                    return err
-                }
-                curEvent.Number = i
-            } else if eventName == "User Defined" {
-                i, err := parseIntArg(
-                        tokens, eventName, lineNum, 2, 0, 15)
-                if err != nil {
-                    return err
-                }
-                curEvent.Number = i + 10
-            } else if eventName == "Outside View" {
-                i, err := parseIntArg(
-                        tokens, eventName, lineNum, 2, 0, 7)
-                if err != nil {
-                    return err
-                }
-                curEvent.Number = i + 40
-            } else if eventName == "Boundary View" {
-                i, err := parseIntArg(
-                        tokens, eventName, lineNum, 2, 0, 7)
-                if err != nil {
-                    return err
-                }
-                curEvent.Number = i + 50
             }
-
-        // Non-event lines are property or code lines
-
+        // Code lines
         } else {
-            // Property
-            if curEvent == nil {
-                tokens := strings.Split(strings.Trim(line, " "), " ")
-                if tokens[0] != "" {
-                    if tokens[0] == "Sprite" {
-                        if len(tokens) < 2 {
-                            return errors.New(fmt.Sprintf(
-                                    "Sprite property needs name on line %v",
-                                    lineNum))
-                        }
-                        obj.SpriteName = tokens[1]
-                    } else if tokens[0] == "Invisible" {
-                        obj.Visible = 0
-                    } else if tokens[0] == "Solid" {
-                        obj.Solid = -1
-                    } else if tokens[0] == "Persistent" {
-                        obj.Persistent = -1
-                    } else if tokens[0] == "Depth" {
-                        if len(tokens) < 2 {
-                            return errors.New(fmt.Sprintf(
-                                    "Sprite property needs name on line %v",
-                                    lineNum))
-                        }
-                        i, err := strconv.Atoi(tokens[1])
-                        if err != nil {
-                            return errors.New(fmt.Sprintf(
-                                    "Invalid depth number %v on line %v\n",
-                                    tokens[1], lineNum))
-                        }
-                        obj.Depth = i
-                    } else if tokens[0] == "Parent" {
-                        if len(tokens) < 2 {
-                            return errors.New(fmt.Sprintf(
-                                    "Parent property needs name on line %v",
-                                    lineNum))
-                        }
-                        obj.ParentName = tokens[1]
-                    } else if tokens[0] == "Mask" {
-                        if len(tokens) < 2 {
-                            return errors.New(fmt.Sprintf(
-                                    "Mask property needs name on line %v",
-                                    lineNum))
-                        }
-                        obj.MaskName = tokens[1]
-                    } else {
-                        fmt.Printf("len tokens: %v\n", len(tokens))
-                        return errors.New(fmt.Sprintf(
-                                "Unrecognized object property %v on line %v\n",
-                                tokens[0], lineNum))
-                    }
-                }
-            // Code
-            } else {
-                curEvent.Actions[0].Arguments.Arguments[0].String += line + "\n"
-            }
+            curEvent.Actions[0].Arguments.Arguments[0].String += line + "\n"
         }
     }
 
     // Trim trailing empty lines off of each event's code
-    // (keep the last newline though)
     for _, event := range obj.Events.Events {
         event.Actions[0].Arguments.Arguments[0].String = 
                 strings.Trim(
-                event.Actions[0].Arguments.Arguments[0].String, "\n ") + "\n"
+                event.Actions[0].Arguments.Arguments[0].String, "\n ")
     }
     return nil
 }
